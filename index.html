@@ -289,7 +289,12 @@ let log=DB.load('cc_log',{});
 let weights=DB.load('cc_weights',[]);
 let norm=DB.load('cc_norm',{sex:'m',age:30,h:178,w:78,act:'1.375',mode:'keep',manual:null});
 let macro=DB.load('cc_macro',{mode:'pct',p:30,f:30,c:40});
-let pick=null, dishIngs=[], diPick=null;
+let pick=null, dishIngs=[];
+// генератор короткого уникального id (большие Date.now() ломали сравнение в onclick)
+function newId(){
+  const all=[...base,...dishes].map(x=>x.id);
+  return (all.length?Math.max(...all):0)+1;
+}
 
 function seedBase(){return[
  {id:1,name:'Куриная грудка',k:113,p:23.6,f:1.9,c:0.4},
@@ -407,8 +412,8 @@ function renderBase(){
 }
 function delItem(type,id){
   if(!confirm('Удалить?'))return;
-  if(type==='dish')dishes=dishes.filter(d=>d.id!==id),DB.save('cc_dishes',dishes);
-  else base=base.filter(b=>b.id!==id),DB.save('cc_base',base);
+  if(type==='dish')dishes=dishes.filter(d=>d.id!=id),DB.save('cc_dishes',dishes);
+  else base=base.filter(b=>b.id!=id),DB.save('cc_base',base);
   renderBase();
 }
 
@@ -428,7 +433,7 @@ function renderEatPick(){
     return `<div class="prod" onclick="pickToEat('${x._type}',${x.id})"><div><b>${x.name}</b>${tag}<div class="mini"><span>Б ${x.p}</span><span>Ж ${x.f}</span><span>У ${x.c}</span></div></div><div class="pk">${x.k}<s>ккал/100г</s></div></div>`;}).join('');
 }
 function pickToEat(type,id){
-  pick=(type==='dish'?dishes:base).find(x=>x.id===id);
+  pick=(type==='dish'?dishes:base).find(x=>x.id==id);
   closeM('mEat');
   gramName.textContent=pick.name;
   gramPer.textContent=`на 100 г: ${pick.k} ккал · Б${pick.p} Ж${pick.f} У${pick.c}`;
@@ -445,7 +450,7 @@ function addEat(){const g=+gramVal.value;if(!g||g<=0)return;const r=g/100,d=toda
 // ===== PRODUKT =====
 function saveProd(){const name=pName.value.trim(),k=+pK.value;
   if(!name||isNaN(k))return alert('Нужно название и калории');
-  base.push({id:Date.now(),name,k,p:+pP.value||0,f:+pF.value||0,c:+pC.value||0});
+  base.push({id:newId(),name,k,p:+pP.value||0,f:+pF.value||0,c:+pC.value||0});
   DB.save('cc_base',base);['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
   closeM('mProd');renderBase();}
 
@@ -455,7 +460,7 @@ function renderDiPick(){const q=(diSrch.value||'').toLowerCase();
   const items=base.filter(b=>b.name.toLowerCase().includes(q));
   diPick.innerHTML=items.map(b=>`<div class="prod" onclick="chooseDi(${b.id})"><div><b>${b.name}</b><div class="mini"><span>Б ${b.p}</span><span>Ж ${b.f}</span><span>У ${b.c}</span></div></div><div class="pk">${b.k}<s>ккал/100г</s></div></div>`).join('');
 }
-function chooseDi(id){diPick_sel=base.find(b=>b.id===id);diName.textContent=diPick_sel.name;diGram.value='';closeM2('mDishIng');openM2('mDishGram');setTimeout(()=>diGram.focus(),250);}
+function chooseDi(id){diPick_sel=base.find(b=>b.id==id);diName.textContent=diPick_sel.name;diGram.value='';closeM2('mDishIng');openM2('mDishGram');setTimeout(()=>diGram.focus(),250);}
 let diPick_sel=null;
 function addIng(){const g=+diGram.value;if(!g||g<=0)return;
   dishIngs.push({pid:diPick_sel.id,name:diPick_sel.name,g});
@@ -480,7 +485,7 @@ function saveDish(){const name=dName.value.trim(),y=+dYield.value;
   if(!dishIngs.length)return alert('Добавь хоть один ингредиент');
   if(!y||y<=0)return alert('Укажи выход готового блюда');
   const t=dishTotals(),r=100/y;
-  dishes.push({id:Date.now(),name,k:Math.round(t.k*r),p:+(t.p*r).toFixed(1),f:+(t.f*r).toFixed(1),c:+(t.c*r).toFixed(1),yield:y,ings:dishIngs});
+  dishes.push({id:newId(),name,k:Math.round(t.k*r),p:+(t.p*r).toFixed(1),f:+(t.f*r).toFixed(1),c:+(t.c*r).toFixed(1),yield:y,ings:[...dishIngs]});
   DB.save('cc_dishes',dishes);closeM('mDish');renderBase();}
 
 // ===== VES =====
@@ -550,6 +555,19 @@ function importData(e){
 }
 
 // ===== START =====
+// Миграция: чиним старые гигантские id (Date.now), из-за которых ломался поиск
+(function migrateIds(){
+  let changed=false, next=1;
+  const used=new Set();
+  // присваиваем короткие id всем продуктам, запоминаем старый→новый
+  const map={};
+  base.forEach(b=>{ const old=b.id; b.id=next++; if(old!==b.id){map[old]=b.id;changed=true;} used.add(b.id); });
+  dishes.forEach(d=>{ const old=d.id; d.id=next++; if(old!==d.id)changed=true;
+    // чиним ссылки ингредиентов блюда на продукты
+    if(d.ings)d.ings.forEach(ing=>{ if(map[ing.pid]!==undefined){ing.pid=map[ing.pid];changed=true;} });
+  });
+  if(changed){ DB.save('cc_base',base); DB.save('cc_dishes',dishes); }
+})();
 today.textContent=fmtDate(new Date());wDate.textContent=fmtDate(new Date());
 fillMacroInputs();fillNormInputs();recalcNorm();renderDay();
 window.addEventListener('resize',()=>{if(document.getElementById('page-weight').classList.contains('on'))drawChart();});
