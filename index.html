@@ -224,21 +224,22 @@
 <!-- modal: vybor tipa -->
 <div class="modal" id="mPick"><div class="sheet">
   <h2>Добавить в базу</h2><div class="sub">Что создаём?</div>
-  <button class="btn" onclick="closeM('mPick');openM('mProd')">🥩 Продукт (сырьё, КБЖУ на 100 г)</button>
+  <button class="btn" onclick="closeM('mPick');openNewProd()">🥩 Продукт (сырьё, КБЖУ на 100 г)</button>
   <button class="btn ghost" onclick="closeM('mPick');openDish()">🍲 Блюдо (рецепт из продуктов)</button>
   <button class="btn ghost" onclick="closeM('mPick')">Отмена</button>
 </div></div>
 
 <!-- modal: novyj produkt -->
 <div class="modal" id="mProd"><div class="sheet">
-  <h2>Новый продукт</h2><div class="sub">Значения на 100 г сырья</div>
+  <h2 id="prodTitle">Новый продукт</h2><div class="sub">Значения на 100 г сырья</div>
   <label>Название</label><input id="pName" placeholder="напр. Куриная грудка">
-  <label>Калории (на 100 г)</label><input id="pK" type="number" inputmode="decimal" placeholder="ккал">
   <div class="row">
-    <div><label>Белки</label><input id="pP" type="number" inputmode="decimal" placeholder="г"></div>
-    <div><label>Жиры</label><input id="pF" type="number" inputmode="decimal" placeholder="г"></div>
-    <div><label>Углев.</label><input id="pC" type="number" inputmode="decimal" placeholder="г"></div>
+    <div><label style="color:var(--p)">Белки</label><input id="pP" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
+    <div><label style="color:var(--f)">Жиры</label><input id="pF" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
+    <div><label style="color:var(--c)">Углев.</label><input id="pC" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
   </div>
+  <label>Калории (на 100 г)</label><input id="pK" type="number" inputmode="decimal" placeholder="посчитается из БЖУ, можно перебить">
+  <div class="hint" id="pKhint">Оставь пустым — посчитаю из БЖУ автоматически (Б×4 + Ж×9 + У×4).</div>
   <button class="btn" onclick="saveProd()">Сохранить</button>
   <button class="btn ghost" onclick="closeM('mProd')">Отмена</button>
 </div></div>
@@ -406,8 +407,10 @@ function renderBase(){
   if(!items.length){baseList.innerHTML='<div class="empty">Ничего не найдено</div>';return;}
   baseList.innerHTML=items.map(x=>{
     const tag=x._type==='dish'?'<span class="tag dish">блюдо</span>':'<span class="tag raw">продукт</span>';
+    const edit=x._type==='raw'?`<button class="del" style="color:var(--dim);font-size:16px" onclick="event.stopPropagation();openEditProd(${x.id})">✎</button>`:'';
     const del=`<button class="del" onclick="event.stopPropagation();delItem('${x._type}',${x.id})">×</button>`;
-    return `<div class="prod" onclick="pickToEat('${x._type}',${x.id})"><div><b>${x.name}</b>${tag}<div class="mini"><span>Б ${x.p}</span><span>Ж ${x.f}</span><span>У ${x.c}</span></div></div><div class="pk">${x.k}<s>ккал/100г</s></div>${del}</div>`;
+    const kcalColor=(!x.k||x.k===0)?'style="color:var(--warn)"':'';
+    return `<div class="prod" onclick="pickToEat('${x._type}',${x.id})"><div><b>${x.name}</b>${tag}<div class="mini"><span>Б ${x.p}</span><span>Ж ${x.f}</span><span>У ${x.c}</span></div></div><div class="pk" ${kcalColor}>${x.k}<s>ккал/100г</s></div>${edit}${del}</div>`;
   }).join('');
 }
 function delItem(type,id){
@@ -448,11 +451,39 @@ function addEat(){const g=+gramVal.value;if(!g||g<=0)return;const r=g/100,d=toda
   DB.save('cc_log',log);closeM('mGram');tab('day');renderDay();}
 
 // ===== PRODUKT =====
-function saveProd(){const name=pName.value.trim(),k=+pK.value;
-  if(!name||isNaN(k))return alert('Нужно название и калории');
-  base.push({id:newId(),name,k,p:+pP.value||0,f:+pF.value||0,c:+pC.value||0});
-  DB.save('cc_base',base);['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
-  closeM('mProd');renderBase();}
+let editProdId=null; // если редактируем — id, иначе null
+// считает калории из БЖУ и показывает подсказку (но не затирает ручной ввод)
+function autoKcal(){
+  const p=+pP.value||0, f=+pF.value||0, c=+pC.value||0;
+  const auto=Math.round(p*4+f*9+c*4);
+  pKhint.innerHTML = pK.value
+    ? `Из БЖУ вышло бы <b style="color:var(--txt)">${auto}</b> ккал. Сейчас стоит твоё значение.`
+    : `Посчитаю из БЖУ: <b style="color:var(--txt)">${auto}</b> ккал. Можешь вписать своё.`;
+}
+function openNewProd(){editProdId=null;prodTitle.textContent='Новый продукт';
+  ['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
+  pKhint.innerHTML='Оставь пустым — посчитаю из БЖУ автоматически (Б×4 + Ж×9 + У×4).';
+  openM('mProd');}
+function openEditProd(id){editProdId=id;const b=base.find(x=>x.id==id);if(!b)return;
+  prodTitle.textContent='Изменить продукт';
+  pName.value=b.name;pK.value=b.k||'';pP.value=b.p||'';pF.value=b.f||'';pC.value=b.c||'';
+  autoKcal();openM('mProd');}
+function saveProd(){
+  const name=pName.value.trim();
+  if(!name)return alert('Нужно название');
+  const p=+pP.value||0, f=+pF.value||0, c=+pC.value||0;
+  // калории: если поле пустое — считаем из БЖУ; иначе берём введённое
+  const k = pK.value!=='' ? +pK.value : Math.round(p*4+f*9+c*4);
+  if(editProdId!==null){
+    const b=base.find(x=>x.id==editProdId);
+    if(b){b.name=name;b.k=k;b.p=p;b.f=f;b.c=c;}
+  } else {
+    base.push({id:newId(),name,k,p,f,c});
+  }
+  DB.save('cc_base',base);
+  ['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
+  editProdId=null;closeM('mProd');renderBase();
+}
 
 // ===== BLYUDO (TK) =====
 function openDish(){dishIngs=[];dName.value='';dYield.value='';renderDIngs();calcDish();openM('mDish');}
@@ -565,6 +596,12 @@ function importData(e){
   dishes.forEach(d=>{ const old=d.id; d.id=next++; if(old!==d.id)changed=true;
     // чиним ссылки ингредиентов блюда на продукты
     if(d.ings)d.ings.forEach(ing=>{ if(map[ing.pid]!==undefined){ing.pid=map[ing.pid];changed=true;} });
+  });
+  // Чиним продукты с нулевыми калориями, но заполненным БЖУ — считаем из БЖУ
+  base.forEach(b=>{
+    if((!b.k||b.k===0) && ((b.p||0)+(b.f||0)+(b.c||0))>0){
+      b.k=Math.round((b.p||0)*4+(b.f||0)*9+(b.c||0)*4); changed=true;
+    }
   });
   if(changed){ DB.save('cc_base',base); DB.save('cc_dishes',dishes); }
 })();
