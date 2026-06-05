@@ -30,7 +30,7 @@
   .macro .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
   .macro .bar i{display:block;height:100%;border-radius:3px;transition:width .4s}
   nav{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom)}
-  nav button{flex:1;background:none;border:none;color:var(--dim);padding:12px 0 14px;font-family:'Spline Sans Mono';font-size:11px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  nav button{flex:1;background:none;border:none;color:var(--dim);padding:11px 0 13px;font-family:'Spline Sans Mono';font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
   nav button.on{color:var(--acc)}
   nav button svg{width:21px;height:21px}
   .page{display:none;padding:0 18px 20px;animation:fade .25s}
@@ -194,6 +194,30 @@
   </div>
 </section>
 
+<!-- PROGNOZ -->
+<section class="page" id="page-plan">
+  <div class="sec-h"><span>План похудения</span></div>
+  <div class="wcard" style="margin-top:0">
+    <div class="row">
+      <div><label>Старт. вес, кг</label><input id="plStart" type="number" inputmode="decimal" placeholder="напр. 128"></div>
+      <div><label>Цель, кг</label><input id="plGoal" type="number" inputmode="decimal" placeholder="напр. 93"></div>
+    </div>
+    <div class="row">
+      <div><label>Темп, % в неделю</label><input id="plPct" type="number" inputmode="decimal" placeholder="0.5 – 1.3" oninput="checkPct()"></div>
+      <div><label>На сколько недель</label><input id="plWeeks" type="number" inputmode="numeric" placeholder="напр. 52"></div>
+    </div>
+    <label>Дата старта</label>
+    <input id="plDate" type="date">
+    <div class="hint" id="plPctHint">Темп = % от ТЕКУЩЕГО веса каждую неделю. По мере похудения граммы сами уменьшаются.</div>
+    <button class="btn" onclick="buildPlan()">📌 Зафиксировать план</button>
+    <button class="btn ghost" onclick="recalcFromNow()">🔄 Пересчитать от текущего веса</button>
+  </div>
+
+  <div id="planSummary"></div>
+  <div class="sec-h" id="planTableHead" style="display:none"><span>По неделям</span><span id="planMode" style="font-size:11px;text-transform:none"></span></div>
+  <div id="planTable"></div>
+</section>
+
 <button class="fab" id="fab" onclick="onFab()">+</button>
 
 <nav>
@@ -201,6 +225,7 @@
   <button data-p="base" onclick="tab('base')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>База</button>
   <button data-p="weight" onclick="tab('weight')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19l5-6 4 3 7-9"/></svg>Вес</button>
   <button data-p="goal" onclick="tab('goal')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>Норма</button>
+  <button data-p="plan" onclick="tab('plan')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M19 7l-5 6-3-2-4 5"/></svg>Прогноз</button>
 </nav>
 
 <!-- modal: dobavit edu -->
@@ -290,6 +315,7 @@ let log=DB.load('cc_log',{});
 let weights=DB.load('cc_weights',[]);
 let norm=DB.load('cc_norm',{sex:'m',age:30,h:178,w:78,act:'1.375',mode:'keep',manual:null});
 let macro=DB.load('cc_macro',{mode:'pct',p:30,f:30,c:40});
+let plan=DB.load('cc_plan',null); // зафиксированный план: {start,goal,pct,weeks,date,rows:[...]}
 let pick=null, dishIngs=[];
 // генератор короткого уникального id (большие Date.now() ломали сравнение в onclick)
 function newId(){
@@ -425,7 +451,7 @@ function onFab(){
   const cur=document.querySelector('.page.on').id;
   if(cur==='page-weight'){openWeight();return;}
   if(cur==='page-base'){openM('mPick');return;}
-  if(cur==='page-goal'){tab('day');return;}
+  if(cur==='page-goal'||cur==='page-plan'){tab('day');return;}
   openM('mEat');renderEatPick();
 }
 function renderEatPick(){
@@ -509,7 +535,19 @@ function calcDish(){const t=dishTotals();dRaw.textContent=Math.round(t.raw);
   const y=+dYield.value;
   if(!dishIngs.length||!y){dCalc.innerHTML='Добавь ингредиенты и выход';return;}
   const r=100/y;
-  dCalc.innerHTML=`На 100 г готового:<br><b>${Math.round(t.k*r)}</b> ккал · Б ${(t.p*r).toFixed(1)} · Ж ${(t.f*r).toFixed(1)} · У ${(t.c*r).toFixed(1)}<br><span style="color:var(--dim);font-size:12px">всё блюдо (${Math.round(y)} г): ${Math.round(t.k)} ккал</span>`;
+  dCalc.innerHTML=`
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+      <span style="font-family:'Bricolage Grotesque';font-size:32px;font-weight:800;color:var(--acc)">${Math.round(t.k*r)}</span>
+      <span style="color:var(--dim);font-size:13px">ккал на 100 г готового</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <span class="pill" style="color:var(--p)">Б ${(t.p*r).toFixed(1)}</span>
+      <span class="pill" style="color:var(--f)">Ж ${(t.f*r).toFixed(1)}</span>
+      <span class="pill" style="color:var(--c)">У ${(t.c*r).toFixed(1)}</span>
+    </div>
+    <div style="border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--dim)">
+      Всё блюдо целиком (${Math.round(y)} г): <b style="font-family:'Bricolage Grotesque';color:var(--txt);font-size:16px">${Math.round(t.k)}</b> ккал
+    </div>`;
 }
 function saveDish(){const name=dName.value.trim(),y=+dYield.value;
   if(!name)return alert('Назови блюдо');
@@ -549,7 +587,8 @@ function tab(p){document.querySelectorAll('.page').forEach(e=>e.classList.remove
   document.getElementById('page-'+p).classList.add('on');
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
   if(p==='base')renderBase();if(p==='weight')renderWeight();
-  if(p==='goal'){fillNormInputs();recalcNorm();fillMacroInputs();renderMacroCalc();}}
+  if(p==='goal'){fillNormInputs();recalcNorm();fillMacroInputs();renderMacroCalc();}
+  if(p==='plan'){fillPlanInputs();renderPlan();}}
 function fillNormInputs(){gSex.value=norm.sex;gAge.value=norm.age||'';gH.value=norm.h||'';gW.value=norm.w||'';gAct.value=norm.act;
   [...goalMode.children].forEach(b=>b.classList.toggle('on',b.dataset.m===norm.mode));
   gManual.value=norm.manual||'';}
@@ -559,9 +598,105 @@ function openM2(id){document.getElementById(id).style.zIndex=40;openM(id);}
 function closeM2(id){closeM(id);}
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on')}));
 
+// ===== PROGNOZ =====
+const PCT_MAX=1.3; // верхний предел темпа
+function checkPct(){
+  const v=+plPct.value||0;
+  if(v>PCT_MAX){
+    plPct.value=PCT_MAX;
+    plPctHint.innerHTML=`<span class="sumbad">Предел ${PCT_MAX}% в неделю — выше клинически безопасного. Поставил максимум.</span>`;
+  } else if(v>1){
+    plPctHint.innerHTML=`<span style="color:var(--f)">Выше ~1%/нед — агрессивный темп. Норм на старте при высоком весе, пересмотри по мере снижения.</span>`;
+  } else {
+    plPctHint.innerHTML='Темп = % от ТЕКУЩЕГО веса каждую неделю. По мере похудения граммы сами уменьшаются.';
+  }
+}
+// строит массив недель: затухающая модель, пока вес > goal или не кончились недели
+function computeRows(start,goal,pct,weeks,startDate){
+  const rows=[]; let w=start; const r=pct/100;
+  const base=startDate?new Date(startDate):new Date();
+  for(let i=0;i<weeks;i++){
+    if(w<=goal)break;
+    const loss=w*r;
+    let end=w-loss;
+    if(end<goal)end=goal;
+    const d0=new Date(base); d0.setDate(d0.getDate()+i*7);
+    const d1=new Date(base); d1.setDate(d1.getDate()+(i+1)*7);
+    rows.push({n:i+1,d0:d0.toISOString().slice(0,10),d1:d1.toISOString().slice(0,10),
+               wStart:+w.toFixed(1),wEnd:+end.toFixed(1),loss:Math.round((w-end)*1000)});
+    w=end;
+    if(w<=goal)break;
+  }
+  return rows;
+}
+function buildPlan(){
+  const start=+plStart.value, goal=+plGoal.value, pct=+plPct.value, weeks=+plWeeks.value||52;
+  if(!start||!goal)return alert('Введи стартовый и целевой вес');
+  if(goal>=start)return alert('Цель должна быть меньше старта');
+  if(!pct||pct<=0)return alert('Введи темп %');
+  const date=plDate.value||todayKey();
+  const rows=computeRows(start,goal,pct,weeks,date);
+  plan={start,goal,pct,weeks,date,rows};
+  DB.save('cc_plan',plan);
+  renderPlan();
+}
+function recalcFromNow(){
+  if(!plan)return alert('Сначала зафиксируй план');
+  const now=weights.length?weights[weights.length-1].kg:plan.start;
+  const rows=computeRows(now,plan.goal,plan.pct,plan.weeks,todayKey());
+  renderPlanTable(rows,'от текущего веса '+now+' кг, темп '+plan.pct+'%');
+  planTableHead.style.display='flex'; planMode.textContent='пересчёт от факта';
+}
+function fillPlanInputs(){
+  if(!plan)return;
+  plStart.value=plan.start;plGoal.value=plan.goal;plPct.value=plan.pct;plWeeks.value=plan.weeks;plDate.value=plan.date;
+}
+function renderPlan(){
+  if(!plan){planSummary.innerHTML='<div class="empty">Заполни поля и зафиксируй план.<br>Прогноз появится здесь.</div>';
+    planTable.innerHTML='';planTableHead.style.display='none';return;}
+  const now=weights.length?weights[weights.length-1].kg:plan.start;
+  const r=plan.pct/100;
+  const gNow=Math.round(now*r*1000), gStart=Math.round(plan.start*r*1000), gGoal=Math.round(plan.goal*r*1000);
+  const totalWeeks=plan.rows.length;
+  const lastDate=plan.rows.length?plan.rows[plan.rows.length-1].d1:'';
+  planSummary.innerHTML=`
+    <div class="wcard">
+      <div style="font-size:13px;color:var(--dim);margin-bottom:10px">Темп ${plan.pct}% в неделю · цель ${plan.goal} кг</div>
+      <div class="wlog"><span>Сейчас (${now} кг) уходит</span><b>${gNow} г/нед</b></div>
+      <div class="wlog"><span>На старте (${plan.start} кг) было</span><b>${gStart} г/нед</b></div>
+      <div class="wlog"><span>У цели (${plan.goal} кг) будет</span><b>${gGoal} г/нед</b></div>
+      <div class="wlog" style="border:none"><span>До цели по плану</span><b>~${totalWeeks} нед (${fmtShort(lastDate)})</b></div>
+    </div>`;
+  renderPlanTable(plan.rows,'зафиксированный план');
+  planTableHead.style.display='flex'; planMode.textContent='план';
+}
+function fmtShort(iso){ if(!iso)return''; return new Date(iso).toLocaleDateString('ru',{day:'numeric',month:'short',year:'2-digit'}); }
+function renderPlanTable(rows,caption){
+  if(!rows.length){planTable.innerHTML='<div class="empty">Нет недель для показа</div>';return;}
+  // сопоставление с фактическим весом по дате (если есть запись близко к концу недели)
+  const html=rows.map(row=>{
+    // ищем факт. вес записанный в пределах недели
+    const fact=weights.find(w=>w.d>=row.d0 && w.d<=row.d1);
+    let factHtml='';
+    if(fact){
+      const diff=(fact.kg-row.wEnd).toFixed(1);
+      const col=diff>0?'var(--warn)':'var(--ok)';
+      factHtml=`<span style="color:${col};font-size:11px">факт ${fact.kg} (${diff>0?'+':''}${diff})</span>`;
+    }
+    return `<div class="wlog" style="align-items:center">
+      <span style="flex:1">Нед ${row.n}<br><span style="font-size:10px">${fmtShort(row.d1)}</span></span>
+      <span style="text-align:right">
+        <b>${row.wStart} → ${row.wEnd}</b>
+        <span style="font-size:10px;color:var(--dim);display:block">−${row.loss} г · ${factHtml||'факта нет'}</span>
+      </span>
+    </div>`;
+  }).join('');
+  planTable.innerHTML=`<div style="font-size:11px;color:var(--dim);margin-bottom:8px">${caption}</div>`+html;
+}
+
 // ===== BACKUP =====
 function exportData(){
-  const dump={base,dishes,log,weights,norm,macro,_v:1,_date:new Date().toISOString()};
+  const dump={base,dishes,log,weights,norm,macro,plan,_v:1,_date:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -575,9 +710,9 @@ function importData(e){
     try{
       const d=JSON.parse(r.result);
       if(d.base)base=d.base; if(d.dishes)dishes=d.dishes; if(d.log)log=d.log;
-      if(d.weights)weights=d.weights; if(d.norm)norm=d.norm; if(d.macro)macro=d.macro;
+      if(d.weights)weights=d.weights; if(d.norm)norm=d.norm; if(d.macro)macro=d.macro; if(d.plan)plan=d.plan;
       DB.save('cc_base',base);DB.save('cc_dishes',dishes);DB.save('cc_log',log);
-      DB.save('cc_weights',weights);DB.save('cc_norm',norm);DB.save('cc_macro',macro);
+      DB.save('cc_weights',weights);DB.save('cc_norm',norm);DB.save('cc_macro',macro);if(plan)DB.save('cc_plan',plan);
       fillMacroInputs();fillNormInputs();recalcNorm();renderDay();
       alert('Данные восстановлены ✓');
     }catch(err){alert('Не удалось прочитать файл — он повреждён или не от этого приложения')}
