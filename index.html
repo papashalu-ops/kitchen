@@ -1,748 +1,841 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#0d0d0f">
-<title>Кухня · счётчик</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#12161d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Песенник</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Spline+Sans+Mono:wght@400;600&display=swap');
-  :root{
-    --bg:#0d0d0f;--panel:#16161a;--panel2:#1e1e24;--line:#2a2a32;
-    --txt:#f2f0eb;--dim:#8a8a96;--acc:#ff7a3d;--acc2:#ffd23d;
-    --p:#5fb3ff;--f:#ffd23d;--c:#7ee787;--ok:#7ee787;--warn:#ff5d5d;
-  }
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{font-family:'Spline Sans Mono',monospace;background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:96px;
-       background-image:radial-gradient(circle at 12% 0%,rgba(255,122,61,.06),transparent 40%)}
-  h1,h2,h3,.disp{font-family:'Bricolage Grotesque',sans-serif}
-  header{padding:20px 18px 12px;position:sticky;top:0;background:linear-gradient(var(--bg) 70%,transparent);z-index:5}
-  .date{font-size:12px;color:var(--dim);letter-spacing:.5px;text-transform:uppercase}
-  .ring-wrap{display:flex;align-items:center;gap:18px;margin-top:10px}
-  .ring{position:relative;width:120px;height:120px;flex-shrink:0}
-  .ring svg{transform:rotate(-90deg)}
-  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .ring .num b{font-family:'Bricolage Grotesque';font-size:30px;line-height:1}
-  .ring .num span{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:3px}
-  .macros{flex:1;display:flex;flex-direction:column;gap:9px}
-  .macro .lab{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
-  .macro .lab b{font-weight:600}
-  .macro .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
-  .macro .bar i{display:block;height:100%;border-radius:3px;transition:width .4s}
-  nav{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom)}
-  nav button{flex:1;background:none;border:none;color:var(--dim);padding:11px 0 13px;font-family:'Spline Sans Mono';font-size:10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
-  nav button.on{color:var(--acc)}
-  nav button svg{width:21px;height:21px}
-  .page{display:none;padding:0 18px 20px;animation:fade .25s}
-  .page.on{display:block}
-  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
-  .sec-h{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:22px 0 10px;display:flex;justify-content:space-between;align-items:center}
-  .entry{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:9px;display:flex;align-items:center;gap:12px}
-  .entry .info{flex:1;min-width:0}
-  .entry .info b{font-family:'Bricolage Grotesque';font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .entry .info small{color:var(--dim);font-size:11px}
-  .entry .kcal{font-family:'Bricolage Grotesque';font-size:17px;font-weight:800}
-  .entry .kcal s{font-size:10px;color:var(--dim);text-decoration:none;display:block;text-align:right;font-weight:400}
-  .entry .del{background:none;border:none;color:var(--warn);font-size:20px;padding:0 2px;cursor:pointer;opacity:.5}
-  .empty{color:var(--dim);text-align:center;padding:40px 10px;font-size:13px;line-height:1.6}
-  .fab{position:fixed;bottom:86px;right:18px;width:58px;height:58px;border-radius:18px;background:var(--acc);border:none;color:#1a0d00;font-size:30px;box-shadow:0 8px 24px rgba(255,122,61,.4);z-index:15;cursor:pointer;font-family:'Bricolage Grotesque'}
-  .btn{width:100%;padding:15px;border-radius:14px;border:none;background:var(--acc);color:#1a0d00;font-family:'Bricolage Grotesque';font-size:16px;font-weight:800;cursor:pointer;margin-top:8px}
-  .btn.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
-  .btn.sm{padding:9px 14px;font-size:13px;width:auto;margin:0}
-  .prod{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:9px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
-  .prod:active{border-color:var(--acc)}
-  .prod b{font-family:'Bricolage Grotesque';font-size:15px}
-  .prod .mini{display:flex;gap:8px;font-size:11px;margin-top:4px}
-  .prod .mini span{color:var(--dim)}
-  .prod .pk{font-family:'Bricolage Grotesque';font-size:16px;font-weight:800;text-align:right;white-space:nowrap}
-  .prod .pk s{font-size:10px;color:var(--dim);text-decoration:none;display:block;font-weight:400}
-  .tag{font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:2px 6px;border-radius:5px;margin-left:6px;vertical-align:middle}
-  .tag.dish{background:rgba(255,122,61,.15);color:var(--acc)}
-  .tag.raw{background:rgba(95,179,255,.15);color:var(--p)}
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:none;align-items:flex-end;backdrop-filter:blur(3px)}
-  .modal.on{display:flex}
-  .sheet{background:var(--panel);width:100%;border-radius:22px 22px 0 0;padding:22px 18px calc(22px + env(safe-area-inset-bottom));border-top:1px solid var(--line);animation:up .3s;max-height:94vh;overflow-y:auto}
-  @keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
-  .sheet h2{font-size:21px;margin-bottom:4px}
-  .sheet .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
-  label{display:block;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}
-  input,select{width:100%;padding:13px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);font-family:'Spline Sans Mono';font-size:16px}
-  input:focus,select:focus{outline:none;border-color:var(--acc)}
-  .row{display:flex;gap:10px}.row>div{flex:1}
-  .calc{background:var(--panel2);border-radius:12px;padding:12px 14px;margin-top:16px;font-size:13px;color:var(--dim);line-height:1.7}
-  .calc b{font-family:'Bricolage Grotesque';color:var(--txt);font-size:18px}
-  .search{position:sticky;top:0;background:var(--panel);padding-bottom:10px;z-index:2}
-  .seg{display:flex;gap:6px;background:var(--panel2);border-radius:12px;padding:4px;margin-top:6px}
-  .seg button{flex:1;border:none;background:none;color:var(--dim);padding:10px 4px;border-radius:9px;font-family:'Spline Sans Mono';font-size:12px;cursor:pointer}
-  .seg button.on{background:var(--acc);color:#1a0d00;font-weight:600}
-  .ing-row{display:flex;align-items:center;gap:8px;background:var(--panel2);border-radius:10px;padding:8px 10px;margin-bottom:6px}
-  .ing-row .n{flex:1;font-size:13px}
-  .ing-row .g{font-size:12px;color:var(--dim)}
-  .ing-row .x{background:none;border:none;color:var(--warn);font-size:18px;cursor:pointer}
-  .wcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:14px}
-  .wnow{display:flex;align-items:baseline;gap:8px}
-  .wnow b{font-family:'Bricolage Grotesque';font-size:42px;font-weight:800}
-  .wnow span{color:var(--dim);font-size:14px}
-  .wdelta{font-size:13px;margin-top:4px}
-  #wchart{width:100%;height:160px;margin-top:18px}
-  .wlog{font-size:12px;color:var(--dim);display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line)}
-  .wlog b{font-family:'Spline Sans Mono';color:var(--txt);font-weight:600}
-  .goal-edit{font-size:12px;color:var(--acc);background:none;border:none;cursor:pointer;text-decoration:underline}
-  .hint{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5}
-  .sumbad{color:var(--warn)}
-  .pill{display:inline-block;font-size:11px;color:var(--dim);background:var(--panel2);border-radius:8px;padding:4px 9px;margin:2px 4px 2px 0}
+:root{
+  --bg:#12161d; --bg2:#1a2029; --bg3:#222b36; --line:#2b3441;
+  --ink:#ece7dc; --dim:#8b95a3; --chord:#f0a92e; --accent:#4fb3a5; --danger:#e2685f;
+  --fs:19px; --lh:1.42;
+  --lyr: ui-serif, Georgia, "Noto Serif", "Times New Roman", serif;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+}
+html[data-theme="light"]{
+  --bg:#f4efe4; --bg2:#ebe4d5; --bg3:#e0d8c6; --line:#d2c9b4;
+  --ink:#1d2430; --dim:#6d6455; --chord:#a9600c; --accent:#0f7a6c; --danger:#b03a30;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--ui);
+  display:flex;flex-direction:column;overflow:hidden;
+  padding-top:env(safe-area-inset-top);
+}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+
+/* ---------- вкладки ---------- */
+#tabstrip{display:flex;align-items:stretch;background:var(--bg2);border-bottom:1px solid var(--line);flex:0 0 auto}
+.sysbtn{flex:0 0 auto;width:44px;display:grid;place-items:center;color:var(--dim);font-size:20px;border-right:1px solid var(--line)}
+.sysbtn:last-child{border-right:0;border-left:1px solid var(--line)}
+.sysbtn:active{background:var(--bg3)}
+#tabs{flex:1 1 auto;display:flex;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto;max-width:11em;display:flex;align-items:center;gap:6px;
+  padding:9px 8px 9px 12px;border-right:1px solid var(--line);
+  color:var(--dim);font-size:13px;position:relative;background:transparent;
+}
+.tab .ttl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.on{color:var(--ink);background:var(--bg)}
+.tab.on::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--chord)}
+.tab .x{width:22px;height:22px;border-radius:11px;display:grid;place-items:center;font-size:15px;color:var(--dim);flex:0 0 auto}
+.tab .x:active{background:var(--bg3)}
+
+/* ---------- шапка песни ---------- */
+#head{flex:0 0 auto;padding:10px 12px 6px;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line)}
+#head h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#head .art{font-size:13px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 auto}
+#head .more{flex:0 0 auto;font-size:20px;color:var(--dim);padding:0 4px;line-height:1}
+
+/* ---------- панель управления ---------- */
+#ctl{flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--bg2)}
+.grp-ctl{display:flex;align-items:center;background:var(--bg3);border-radius:9px;overflow:hidden}
+.grp-ctl button{padding:7px 10px;font-size:14px;color:var(--ink);min-width:34px}
+.grp-ctl button:active{background:var(--line)}
+.grp-ctl .sep{width:1px;align-self:stretch;background:var(--bg2)}
+#tKey{font-weight:600;color:var(--chord);font-variant-numeric:tabular-nums;min-width:52px}
+#fsVal{font-size:12px;color:var(--dim);min-width:30px;text-align:center}
+.pill{padding:7px 10px;border-radius:9px;background:var(--bg3);font-size:14px}
+.pill.on{background:var(--accent);color:#08120f}
+html[data-theme="light"] .pill.on{color:#fff}
+.spacer{flex:1 1 auto}
+
+/* ---------- лист с песней ---------- */
+#stage{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#sheet{padding:14px 12px calc(60vh + env(safe-area-inset-bottom));font-size:var(--fs)}
+.line{display:flex;flex-wrap:wrap;align-items:flex-end;line-height:var(--lh)}
+.line.hasch{margin-top:.28em}
+.grp{display:inline-flex;align-items:flex-end;white-space:pre}
+.unit{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.ch{font-family:var(--ui);font-weight:700;font-size:.82em;line-height:1.25;color:var(--chord);white-space:pre;letter-spacing:.01em}
+.ch:not(:empty){padding-right:.55em}
+.ch.raw{color:var(--dim);font-weight:600}
+.ch.guess{text-decoration:underline dotted currentColor;text-underline-offset:.18em;opacity:.85}
+.line.hasch .ch{min-height:1.25em}
+.ly{font-family:var(--lyr);white-space:pre;line-height:var(--lh)}
+.blank{height:.75em}
+.sect{
+  font-family:var(--ui);font-size:.78em;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin:1.1em 0 .35em;display:flex;align-items:center;gap:.7em;
+}
+.sect::after{content:"";flex:1 1 auto;height:1px;background:var(--line)}
+#sheet.nochords .ch{display:none}
+#sheet.nochords .line.hasch .ch{min-height:0}
+
+/* ---------- пустой экран ---------- */
+#empty{flex:1 1 auto;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:30px;text-align:center;color:var(--dim)}
+#empty b{color:var(--ink);font-size:17px;font-weight:600}
+.bigbtn{background:var(--accent);color:#08120f;padding:12px 20px;border-radius:11px;font-weight:600}
+html[data-theme="light"] .bigbtn{color:#fff}
+
+/* ---------- автопрокрутка ---------- */
+#auto{flex:0 0 auto;display:none;align-items:center;gap:10px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:var(--bg2);border-top:1px solid var(--line)}
+#auto.on{display:flex}
+#auto input[type=range]{flex:1 1 auto;accent-color:var(--accent)}
+#auto .spd{font-size:12px;color:var(--dim);min-width:56px;text-align:right;font-variant-numeric:tabular-nums}
+#playBtn{width:40px;height:40px;border-radius:20px;background:var(--accent);color:#08120f;display:grid;place-items:center;font-size:15px;flex:0 0 auto}
+html[data-theme="light"] #playBtn{color:#fff}
+
+/* ---------- шторки ---------- */
+.ov{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.ov.on{display:flex}
+.ovhead{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.ovhead h2{margin:0;font-size:16px;font-weight:600;flex:1 1 auto}
+.ovhead button{color:var(--accent);font-size:15px;font-weight:600;padding:6px 4px}
+.ovbody{flex:1 1 auto;overflow-y:auto;padding:12px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
+.fld{display:block;margin-bottom:10px}
+.fld span{display:block;font-size:12px;color:var(--dim);margin-bottom:4px}
+.fld input,.fld textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:10px;
+  color:var(--ink);font-size:15px;
+}
+.fld textarea{min-height:46vh;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.45;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+.hint{font-size:12px;color:var(--dim);line-height:1.5;margin:6px 0 14px}
+.hint code{background:var(--bg2);padding:1px 4px;border-radius:4px;font-size:11px}
+#search{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:15px;margin-bottom:10px}
+.item{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.item .meta{flex:1 1 auto;min-width:0}
+.item .t{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .a{font-size:12px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .act{flex:0 0 auto;color:var(--dim);padding:6px 8px;font-size:16px}
+.menu{position:fixed;inset:0;z-index:30;display:none;background:rgba(0,0,0,.45)}
+.menu.on{display:block}
+.menucard{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.menucard button{display:block;width:100%;text-align:left;padding:14px 16px;font-size:15px;border-bottom:1px solid var(--line)}
+.menucard button:last-child{border-bottom:0}
+.menucard button:active{background:var(--bg3)}
+.menucard .val{float:right;color:var(--dim);font-size:13px}
+.menucard .dn{color:var(--danger)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));background:var(--bg3);border:1px solid var(--line);padding:10px 16px;border-radius:20px;font-size:14px;z-index:50;opacity:0;transition:opacity .18s;pointer-events:none}
+.toast.on{opacity:1}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.row button{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:10px 14px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
-<header>
-  <div class="date" id="today">—</div>
-  <div class="ring-wrap">
-    <div class="ring">
-      <svg width="120" height="120">
-        <circle cx="60" cy="60" r="52" fill="none" stroke="#1e1e24" stroke-width="10"/>
-        <circle id="ringFill" cx="60" cy="60" r="52" fill="none" stroke="var(--acc)" stroke-width="10" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
-      </svg>
-      <div class="num"><b id="kcalLeft">0</b><span>осталось</span></div>
-    </div>
-    <div class="macros">
-      <div class="macro"><div class="lab"><span>Калории</span><b id="kcalTxt">0 / 0</b></div><div class="bar"><i id="barK" style="background:var(--acc)"></i></div></div>
-      <div class="macro"><div class="lab"><span style="color:var(--p)">Белки</span><b id="pTxt">0 / 0</b></div><div class="bar"><i id="barP" style="background:var(--p)"></i></div></div>
-      <div class="macro"><div class="lab"><span style="color:var(--f)">Жиры</span><b id="fTxt">0 / 0</b></div><div class="bar"><i id="barF" style="background:var(--f)"></i></div></div>
-      <div class="macro"><div class="lab"><span style="color:var(--c)">Углеводы</span><b id="cTxt">0 / 0</b></div><div class="bar"><i id="barC" style="background:var(--c)"></i></div></div>
-    </div>
-  </div>
+<header id="tabstrip">
+  <button class="sysbtn" id="btnLib" title="Песни">☰</button>
+  <div id="tabs"></div>
+  <button class="sysbtn" id="btnNew" title="Добавить">+</button>
 </header>
 
-<section class="page on" id="page-day">
-  <div class="sec-h"><span>Сегодня съедено</span><button class="goal-edit" onclick="tab('goal')">цель: <span id="goalLab">0</span> ✎</button></div>
-  <div id="dayList"></div>
-</section>
+<div id="head">
+  <h1 id="hTitle">—</h1>
+  <div class="art" id="hArtist"></div>
+  <button class="more" id="btnMore">⋯</button>
+</div>
 
-<section class="page" id="page-base">
-  <div class="search"><input id="srch" placeholder="🔍 поиск по базе…" oninput="renderBase()"></div>
-  <div class="sec-h"><span>Моя база</span><span id="baseCount">0</span></div>
-  <div id="baseList"></div>
-</section>
-
-<section class="page" id="page-weight">
-  <div class="wcard">
-    <div class="wnow"><b id="wNow">—</b><span>кг</span></div>
-    <div class="wdelta" id="wDelta"></div>
-    <canvas id="wchart"></canvas>
+<div id="ctl">
+  <div class="grp-ctl">
+    <button id="fsDown">A−</button><div class="sep"></div>
+    <button id="fsUp">A+</button>
   </div>
-  <button class="btn" style="margin-top:14px" onclick="openWeight()">+ записать вес</button>
-  <div class="sec-h"><span>История</span></div>
-  <div id="wList"></div>
-</section>
-
-<!-- NORMA / CEL -->
-<section class="page" id="page-goal">
-  <div class="sec-h"><span>Расчёт нормы</span></div>
-  <div class="wcard" style="margin-top:0">
-    <div class="row"><div><label>Пол</label>
-      <select id="gSex" onchange="onNormInput()"><option value="m">Мужской</option><option value="f">Женский</option></select></div>
-      <div><label>Возраст</label><input id="gAge" type="number" inputmode="numeric" oninput="onNormInput()"></div></div>
-    <div class="row"><div><label>Рост, см</label><input id="gH" type="number" inputmode="numeric" oninput="onNormInput()"></div>
-      <div><label>Вес, кг</label><input id="gW" type="number" inputmode="decimal" oninput="onNormInput()"></div></div>
-    <label>Активность</label>
-    <select id="gAct" onchange="onNormInput()">
-      <option value="1.2">Сидячий образ жизни</option>
-      <option value="1.375" selected>Лёгкая активность (1-3 трен/нед)</option>
-      <option value="1.55">Средняя (3-5 трен/нед)</option>
-      <option value="1.725">Высокая (6-7 трен/нед)</option>
-      <option value="1.9">Очень высокая (физ. работа)</option>
-    </select>
-    <label>Цель</label>
-    <div class="seg" id="goalMode">
-      <button data-m="loss" onclick="setMode('loss')">Снижение</button>
-      <button data-m="keep" class="on" onclick="setMode('keep')">Поддержание</button>
-      <button data-m="gain" onclick="setMode('gain')">Набор</button>
-    </div>
-    <div class="calc">
-      Базовый обмен (BMR): <b id="rBmr">0</b> ккал<br>
-      Суточный расход (TDEE): <b id="rTdee">0</b> ккал<br>
-      По расчёту под цель: <b id="rTarget" style="color:var(--acc)">0</b> ккал
-    </div>
-    <label>Своя цель (можно перебить расчёт)</label>
-    <input id="gManual" type="number" inputmode="numeric" placeholder="оставь пустым = берём расчёт" oninput="saveGoalLive()">
-    <div class="hint" id="goalHint"></div>
+  <div class="grp-ctl">
+    <button id="trDown">−</button><div class="sep"></div>
+    <button id="tKey">—</button><div class="sep"></div>
+    <button id="trUp">+</button>
   </div>
+  <div class="spacer"></div>
+  <button class="pill" id="btnAuto">⇅</button>
+</div>
 
-  <div class="sec-h"><span>Соотношение БЖУ</span><button class="goal-edit" onclick="resetMacros()">сброс 30/30/40</button></div>
-  <div class="wcard" style="margin-top:0">
-    <div class="seg" id="macroMode">
-      <button data-mm="pct" class="on" onclick="setMacroMode('pct')">Проценты</button>
-      <button data-mm="gkg" onclick="setMacroMode('gkg')">Граммы на кг веса</button>
-    </div>
-    <div class="row" style="margin-top:14px">
-      <div><label style="color:var(--p)">Белки</label><input id="mP" type="number" inputmode="decimal" oninput="onMacroInput()"></div>
-      <div><label style="color:var(--f)">Жиры</label><input id="mF" type="number" inputmode="decimal" oninput="onMacroInput()"></div>
-      <div><label style="color:var(--c)">Углев.</label><input id="mC" type="number" inputmode="decimal" oninput="onMacroInput()"></div>
-    </div>
-    <div class="hint" id="macroHint"></div>
-    <div class="calc" id="macroCalc"></div>
-    <button class="btn" onclick="tab('day')">Готово</button>
+<main id="stage"><div id="sheet"></div></main>
+
+<div id="empty">
+  <b>Пусто</b>
+  <div>Вставьте текст с аккордами — приложение само разберёт, где аккорды, а где слова.</div>
+  <button class="bigbtn" id="btnFirst">Добавить песню</button>
+</div>
+
+<div id="auto">
+  <button id="playBtn">▶</button>
+  <input type="range" id="spd" min="4" max="130" step="2">
+  <div class="spd" id="spdVal"></div>
+</div>
+
+<!-- ШТОРКА: библиотека -->
+<div class="ov" id="ovLib">
+  <div class="ovhead">
+    <h2>Песни</h2>
+    <button id="libSort">По дате</button>
+    <button id="libSet">⚙</button>
+    <button data-close="ovLib">Закрыть</button>
   </div>
-
-  <div class="sec-h"><span>Резервная копия</span></div>
-  <div class="wcard" style="margin-top:0">
-    <div class="hint" style="margin:0 0 12px">Сохрани все данные (база, блюда, дневник, вес, настройки) в файл. Пригодится при смене телефона или чистке браузера.</div>
-    <button class="btn ghost" onclick="exportData()">⬇ Сохранить копию в файл</button>
-    <button class="btn ghost" onclick="document.getElementById('importFile').click()">⬆ Восстановить из файла</button>
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+  <div class="ovbody">
+    <input id="search" placeholder="Поиск по названию или исполнителю">
+    <div id="libList"></div>
   </div>
-</section>
+</div>
 
-<!-- PROGNOZ -->
-<section class="page" id="page-plan">
-  <div class="sec-h"><span>План похудения</span></div>
-  <div class="wcard" style="margin-top:0">
+<!-- ШТОРКА: редактор -->
+<div class="ov" id="ovEdit">
+  <div class="ovhead">
+    <h2 id="edTitle">Новая песня</h2>
+    <button id="edPreview">Разбор</button>
+    <button id="edSave">Сохранить</button>
+    <button data-close="ovEdit">✕</button>
+  </div>
+  <div class="ovbody">
+    <label class="fld"><span>Название</span><input id="edName" placeholder="Без названия"></label>
+    <label class="fld"><span>Исполнитель</span><input id="edArt" placeholder="—"></label>
+    <label class="fld"><span>Текст с аккордами</span><textarea id="edText" spellcheck="false" placeholder="Am           Dm
+Строка аккордов сверху, слова снизу"></textarea></label>
+    <div class="hint" id="edStat"></div>
+    <div class="hint">
+      Понимает два формата: аккорды отдельной строкой над словами (как на сайтах с подборами)
+      и вставку прямо в строку — <code>[Am]слово [Dm]другое</code>.
+      Строки вида <code>[Припев]</code> становятся заголовками. Пробелы при вставке не трогайте: по ним считается, над каким слогом стоит аккорд.
+    </div>
+  </div>
+</div>
+
+<!-- ШТОРКА: данные и настройки -->
+<div class="ov" id="ovData">
+  <div class="ovhead"><h2>Настройки</h2><button data-close="ovData">Закрыть</button></div>
+  <div class="ovbody">
     <div class="row">
-      <div><label>Старт. вес, кг</label><input id="plStart" type="number" inputmode="decimal" placeholder="напр. 128"></div>
-      <div><label>Цель, кг</label><input id="plGoal" type="number" inputmode="decimal" placeholder="напр. 93"></div>
+      <button id="setTheme">Тема: тёмная</button>
+      <button id="setWake">Не гасить экран: вкл</button>
     </div>
+    <div class="hint">Резервная копия — весь песенник одним файлом. Импорт добавляет песни к существующим, не стирая их.</div>
     <div class="row">
-      <div><label>Темп, % в неделю</label><input id="plPct" type="number" inputmode="decimal" placeholder="0.5 – 1.3" oninput="checkPct()"></div>
-      <div><label>На сколько недель</label><input id="plWeeks" type="number" inputmode="numeric" placeholder="напр. 52"></div>
+      <button id="expFile">Скачать копию</button>
+      <button id="expClip">Скопировать копию</button>
     </div>
-    <label>Дата старта</label>
-    <input id="plDate" type="date">
-    <div class="hint" id="plPctHint">Темп = % от ТЕКУЩЕГО веса каждую неделю. По мере похудения граммы сами уменьшаются.</div>
-    <button class="btn" onclick="buildPlan()">📌 Зафиксировать план</button>
-    <button class="btn ghost" onclick="recalcFromNow()">🔄 Пересчитать от текущего веса</button>
+    <label class="fld"><span>Вставить резервную копию (JSON)</span><textarea id="impText" spellcheck="false" style="min-height:22vh"></textarea></label>
+    <div class="row"><button id="impRun">Импортировать</button></div>
+    <div class="row"><button id="wipe" style="color:var(--danger)">Удалить все песни</button></div>
+    <div class="hint" id="ver"></div>
   </div>
+</div>
 
-  <div id="planSummary"></div>
-  <div class="sec-h" id="planTableHead" style="display:none"><span>По неделям</span><span id="planMode" style="font-size:11px;text-transform:none"></span></div>
-  <div id="planTable"></div>
-</section>
-
-<button class="fab" id="fab" onclick="onFab()">+</button>
-
-<nav>
-  <button class="on" data-p="day" onclick="tab('day')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 11h18M3 11l2-7h14l2 7M5 11v8a1 1 0 001 1h12a1 1 0 001-1v-8"/></svg>День</button>
-  <button data-p="base" onclick="tab('base')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>База</button>
-  <button data-p="weight" onclick="tab('weight')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19l5-6 4 3 7-9"/></svg>Вес</button>
-  <button data-p="goal" onclick="tab('goal')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>Норма</button>
-  <button data-p="plan" onclick="tab('plan')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M19 7l-5 6-3-2-4 5"/></svg>Прогноз</button>
-</nav>
-
-<!-- modal: dobavit edu -->
-<div class="modal" id="mEat"><div class="sheet">
-  <h2>Что съел?</h2><div class="sub">Продукт или готовое блюдо</div>
-  <input id="eatSrch" placeholder="🔍 поиск…" oninput="renderEatPick()" style="margin-bottom:6px">
-  <div id="eatPick" style="max-height:48vh;overflow-y:auto"></div>
-  <button class="btn ghost" onclick="closeM('mEat')">Закрыть</button>
-</div></div>
-
-<!-- modal: skolko gramm -->
-<div class="modal" id="mGram"><div class="sheet">
-  <h2 id="gramName">—</h2><div class="sub" id="gramPer">—</div>
-  <label>Сколько грамм съел?</label>
-  <input id="gramVal" type="number" inputmode="decimal" placeholder="напр. 200" oninput="calcGram()">
-  <div class="calc">Это <b id="gramKcal">0</b> ккал · Б <span id="gramP">0</span> · Ж <span id="gramF">0</span> · У <span id="gramC">0</span></div>
-  <button class="btn" onclick="addEat()">Добавить в день</button>
-  <button class="btn ghost" onclick="closeM('mGram')">Назад</button>
-</div></div>
-
-<!-- modal: vybor tipa -->
-<div class="modal" id="mPick"><div class="sheet">
-  <h2>Добавить в базу</h2><div class="sub">Что создаём?</div>
-  <button class="btn" onclick="closeM('mPick');openNewProd()">🥩 Продукт (сырьё, КБЖУ на 100 г)</button>
-  <button class="btn ghost" onclick="closeM('mPick');openDish()">🍲 Блюдо (рецепт из продуктов)</button>
-  <button class="btn ghost" onclick="closeM('mPick')">Отмена</button>
-</div></div>
-
-<!-- modal: novyj produkt -->
-<div class="modal" id="mProd"><div class="sheet">
-  <h2 id="prodTitle">Новый продукт</h2><div class="sub">Значения на 100 г сырья</div>
-  <label>Название</label><input id="pName" placeholder="напр. Куриная грудка">
-  <div class="row">
-    <div><label style="color:var(--p)">Белки</label><input id="pP" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
-    <div><label style="color:var(--f)">Жиры</label><input id="pF" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
-    <div><label style="color:var(--c)">Углев.</label><input id="pC" type="number" inputmode="decimal" placeholder="г" oninput="autoKcal()"></div>
-  </div>
-  <label>Калории (на 100 г)</label><input id="pK" type="number" inputmode="decimal" placeholder="посчитается из БЖУ, можно перебить">
-  <div class="hint" id="pKhint">Оставь пустым — посчитаю из БЖУ автоматически (Б×4 + Ж×9 + У×4).</div>
-  <button class="btn" onclick="saveProd()">Сохранить</button>
-  <button class="btn ghost" onclick="closeM('mProd')">Отмена</button>
-</div></div>
-
-<!-- modal: novoe blyudo (TK) -->
-<div class="modal" id="mDish"><div class="sheet">
-  <h2>Карточка блюда</h2><div class="sub">Закидывай сырьё → укажи выход готового</div>
-  <label>Название блюда</label><input id="dName" placeholder="напр. Гречка с луком и морковью">
-  <div class="sec-h" style="margin:18px 0 8px"><span>Состав</span><button class="btn sm" onclick="openM2('mDishIng')">+ ингредиент</button></div>
-  <div id="dIngList"><div class="empty" style="padding:18px">Пусто — добавь ингредиенты</div></div>
-  <label>Выход готового блюда, г <span style="text-transform:none;color:var(--acc)">(обязательно)</span></label>
-  <input id="dYield" type="number" inputmode="decimal" placeholder="сколько вышло после готовки" oninput="calcDish()">
-  <div class="hint">Сырьё суммарно: <span id="dRaw">0</span> г. Выход меняет КБЖУ на 100 г — варка/ужарка учтена.</div>
-  <div class="calc" id="dCalc">Добавь ингредиенты и выход</div>
-  <button class="btn" onclick="saveDish()">Сохранить блюдо</button>
-  <button class="btn ghost" onclick="closeM('mDish')">Отмена</button>
-</div></div>
-
-<!-- modal: vybor ingredienta dlya blyuda -->
-<div class="modal" id="mDishIng"><div class="sheet">
-  <h2>Ингредиент</h2><div class="sub">Выбери продукт из базы</div>
-  <input id="diSrch" placeholder="🔍 поиск…" oninput="renderDiPick()" style="margin-bottom:6px">
-  <div id="diPick" style="max-height:42vh;overflow-y:auto"></div>
-  <button class="btn ghost" onclick="closeM2('mDishIng')">Назад</button>
-</div></div>
-
-<!-- modal: gramm ingredienta -->
-<div class="modal" id="mDishGram"><div class="sheet">
-  <h2 id="diName">—</h2><div class="sub">Сколько грамм сырья в блюде?</div>
-  <input id="diGram" type="number" inputmode="decimal" placeholder="г" autofocus>
-  <button class="btn" onclick="addIng()">Добавить в состав</button>
-  <button class="btn ghost" onclick="closeM2('mDishGram')">Назад</button>
-</div></div>
-
-<!-- modal: ves -->
-<div class="modal" id="mWeight"><div class="sheet">
-  <h2>Записать вес</h2><div class="sub" id="wDate">сегодня</div>
-  <label>Вес, кг</label><input id="wVal" type="number" inputmode="decimal" placeholder="напр. 78.5">
-  <button class="btn" onclick="saveWeight()">Сохранить</button>
-  <button class="btn ghost" onclick="closeM('mWeight')">Отмена</button>
-</div></div>
+<!-- меню песни -->
+<div class="menu" id="menu"><div class="menucard" id="menuCard"></div></div>
+<div class="toast" id="toast"></div>
 
 <script>
-const DB={load(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},save(k,v){localStorage.setItem(k,JSON.stringify(v))}};
-let base=DB.load('cc_base',seedBase());
-let dishes=DB.load('cc_dishes',[]);
-let log=DB.load('cc_log',{});
-let weights=DB.load('cc_weights',[]);
-let norm=DB.load('cc_norm',{sex:'m',age:30,h:178,w:78,act:'1.375',mode:'keep',manual:null});
-let macro=DB.load('cc_macro',{mode:'pct',p:30,f:30,c:40});
-let plan=DB.load('cc_plan',null); // зафиксированный план: {start,goal,pct,weeks,date,rows:[...]}
-let pick=null, dishIngs=[];
-// генератор короткого уникального id (большие Date.now() ломали сравнение в onclick)
-function newId(){
-  const all=[...base,...dishes].map(x=>x.id);
-  return (all.length?Math.max(...all):0)+1;
+/* =========================================================================
+   ЯДРО: теория аккордов, парсер, раскладка. Без DOM — тестируется отдельно.
+   ========================================================================= */
+/* ===CORE-START=== */
+const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT =['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const PC={C:0,D:2,E:4,F:5,G:7,A:9,H:11};   // B сознательно отсутствует: его читает человек, не программа
+
+// корень + необязательный суффикс + необязательный бас
+const CHORD_RE=/^([A-H])([#b\u266f\u266d]?)((?:maj|Maj|MAJ|min|Min|m|M|dim|aug|sus|add|alt|no|\u00b0|\u00f8|\u0394|\+|-|\d|\()[A-Za-z0-9\u00b0\u00f8\u0394#b\u266f\u266d+\-()\u2206]*)?(?:\/([A-H])([#b\u266f\u266d]?))?$/;
+// служебные значки на строке аккордов
+const STRUCT_RE=/^(?:\|{1,2}|:\|{1,2}|\|{1,2}:|[xX]\d{1,2}|\(\d{1,2}[xXхХ]\)|\d{1,2}[xXхХ]|N\.?C\.?|%|-{1,4}|~|\/{1,4}|\.{2,4})$/;
+const SECT_RE=/^\s*(?:\[([^\]]{1,48})\]|\{(?:c|comment|соmment)\s*:\s*([^}]{1,48})\}|((?:куплет|припев|бридж|проигрыш|вступление|интро|кода|соло|финал|аутро|запев|verse|chorus|bridge|intro|outro|solo|pre-?chorus|interlude|riff)[^\n]{0,20}))\s*$/i;
+
+function isChord(t){ return CHORD_RE.test(t); }
+function isStruct(t){ return STRUCT_RE.test(t); }
+
+function parseChord(t){
+  const m=CHORD_RE.exec(t);
+  if(!m) return null;
+  return {root:m[1],acc:m[2]||'',suf:m[3]||'',bass:m[4]||'',bacc:m[5]||''};
+}
+// голое B — единственная по-настоящему двусмысленная буква: си или си-бемоль.
+// Bb, B#, Hm и прочее однозначны.
+function ambiguousB(t){
+  const c=parseChord(t);
+  return !!c && ((c.root==='B'&&!c.acc) || (c.bass==='B'&&!c.bacc));
 }
 
-function seedBase(){return[
- {id:1,name:'Куриная грудка',k:113,p:23.6,f:1.9,c:0.4},
- {id:2,name:'Яйцо куриное',k:157,p:12.7,f:11.5,c:0.7},
- {id:3,name:'Гречка сухая',k:343,p:12.6,f:3.3,c:62},
- {id:4,name:'Рис сухой',k:344,p:6.7,f:0.7,c:78},
- {id:5,name:'Лук репчатый',k:41,p:1.4,f:0,c:8.2},
- {id:6,name:'Морковь',k:35,p:1.3,f:0.1,c:6.9},
- {id:7,name:'Масло подсолнечное',k:899,p:0,f:99.9,c:0},
- {id:8,name:'Творог 5%',k:121,p:17.2,f:5,c:1.8},
- {id:9,name:'Лосось',k:208,p:20,f:13,c:0},
- {id:10,name:'Банан',k:95,p:1.5,f:0.2,c:21.8}
-];}
-const todayKey=()=>new Date().toISOString().slice(0,10);
-const fmtDate=d=>new Date(d).toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'});
-
-// ===== NORMA =====
-// recalcNorm — ТОЛЬКО считает из norm и рисует. Ничего не читает из полей и не сохраняет.
-function recalcNorm(){
-  const bmr = norm.sex==='m'
-    ? 10*norm.w+6.25*norm.h-5*norm.age+5
-    : 10*norm.w+6.25*norm.h-5*norm.age-161;
-  const tdee = bmr*parseFloat(norm.act);
-  const target = norm.mode==='loss'?tdee*0.8 : norm.mode==='gain'?tdee*1.15 : tdee;
-  rBmr.textContent=Math.round(bmr)||0;
-  rTdee.textContent=Math.round(tdee)||0;
-  rTarget.textContent=Math.round(target)||0;
-  norm._target=Math.round(target)||0;
-  updateGoalHint(); renderMacroCalc(); renderDay();
-}
-// onNormInput — вызывается при РЕДАКТИРОВАНИИ полей: читает их, сохраняет, пересчитывает.
-function onNormInput(){
-  norm.sex=gSex.value; norm.age=+gAge.value||0; norm.h=+gH.value||0; norm.w=+gW.value||0; norm.act=gAct.value;
-  DB.save('cc_norm',norm); recalcNorm();
-}
-function setMode(m){norm.mode=m;[...goalMode.children].forEach(b=>b.classList.toggle('on',b.dataset.m===m));DB.save('cc_norm',norm);recalcNorm();}
-function saveGoalLive(){norm.manual=gManual.value?Math.round(+gManual.value):null;DB.save('cc_norm',norm);updateGoalHint();renderMacroCalc();renderDay();}
-function currentGoal(){return norm.manual||norm._target||2000;}
-function updateGoalHint(){
-  const g=currentGoal();
-  goalHint.innerHTML = norm.manual
-    ? `Сейчас цель: <b style="color:var(--txt)">${norm.manual}</b> ккал <span style="color:var(--dim)">(расчёт ${norm._target})</span>`
-    : `Сейчас цель: <b style="color:var(--txt)">${norm._target}</b> ккал <span style="color:var(--dim)">(по расчёту)</span>`;
-}
-
-// ===== MACRO =====
-function setMacroMode(m){macro.mode=m;[...macroMode.children].forEach(b=>b.classList.toggle('on',b.dataset.mm===m));fillMacroInputs();DB.save('cc_macro',macro);renderMacroCalc();renderDay();}
-function resetMacros(){macro={mode:'pct',p:30,f:30,c:40};[...macroMode.children].forEach(b=>b.classList.toggle('on',b.dataset.mm==='pct'));fillMacroInputs();DB.save('cc_macro',macro);renderMacroCalc();renderDay();}
-function fillMacroInputs(){mP.value=macro.p;mF.value=macro.f;mC.value=macro.c;}
-function onMacroInput(){macro.p=+mP.value||0;macro.f=+mF.value||0;macro.c=+mC.value||0;DB.save('cc_macro',macro);renderMacroCalc();renderDay();}
-// vozvrashaet celi BJU v grammah
-function macroTargets(){
-  const g=currentGoal();
-  if(macro.mode==='pct'){
-    const sum=macro.p+macro.f+macro.c;
-    return {p:g*macro.p/100/4, f:g*macro.f/100/9, c:g*macro.c/100/4, sum};
-  } else {
-    const w=norm.w||78;
-    return {p:macro.p*w, f:macro.f*w, c:macro.c*w, sum:null};
+function isChordLine(line){
+  const s=line.trim();
+  if(!s) return false;
+  const toks=s.split(/\s+/);
+  if(toks.length>14) return false;             // длинная строка слов — точно не аккорды
+  let n=0;
+  for(const t of toks){
+    if(isStruct(t)) continue;
+    if(isChord(t)){ n++; continue; }
+    return false;
   }
+  return n>0;
 }
-function renderMacroCalc(){
-  const t=macroTargets(), g=currentGoal();
-  if(macro.mode==='pct'){
-    const bad=Math.abs(t.sum-100)>0.5;
-    macroHint.innerHTML = bad?`<span class="sumbad">⚠ сумма ${t.sum}% — должно быть 100%</span>`:`Сумма 100% ✓`;
-    macroCalc.innerHTML=`При цели ${g} ккал это:<br><span class="pill">Б ${Math.round(t.p)} г</span><span class="pill">Ж ${Math.round(t.f)} г</span><span class="pill">У ${Math.round(t.c)} г</span>`;
-  } else {
-    const kc=Math.round(t.p*4+t.f*9+t.c*4);
-    macroHint.innerHTML=`Граммы на ${norm.w||78} кг веса. Выходит ${kc} ккал из БЖУ.`;
-    macroCalc.innerHTML=`<span class="pill">Б ${Math.round(t.p)} г</span><span class="pill">Ж ${Math.round(t.f)} г</span><span class="pill">У ${Math.round(t.c)} г</span>`;
+
+function chordTokens(line){
+  const out=[]; const re=/\S+/g; let m;
+  while((m=re.exec(line))!==null) out.push({col:m.index,text:m[0],raw:!isChord(m[0])});
+  return out;
+}
+
+function pcOf(letter,acc,bFlat){
+  let v = letter==='B' ? (bFlat?10:11) : PC[letter];
+  if(acc==='#'||acc==='\u266f') v++;
+  if(acc==='b'||acc==='\u266d') v--;
+  return ((v%12)+12)%12;
+}
+// голое B на выходе не пишем никогда: приложение не создаёт ту же двусмысленность заново
+function nameOf(v,o){
+  if(v===11) return o.useH?'H':'B';
+  if(v===10) return o.flats?'Bb':'A#';
+  return (o.flats?FLAT:SHARP)[v];
+}
+/* o = {bFlat, flats, useH}. semi===0 -> текст возвращается байт в байт. */
+function transposeChord(text,semi,o){
+  if(!semi) return text;
+  const c=parseChord(text);
+  if(!c) return text;
+  const opt=o||{};
+  let out=nameOf(((pcOf(c.root,c.acc,opt.bFlat)+semi)%12+12)%12,opt)+c.suf;
+  if(c.bass) out+='/'+nameOf(((pcOf(c.bass,c.bacc,opt.bFlat)+semi)%12+12)%12,opt);
+  return out;
+}
+
+// ChordPro-строка -> пара (строка аккордов, строка слов)
+function chordProSplit(line){
+  let lyric='', chords=[];
+  const re=/\[([^\]]{1,16})\]/g; let last=0,m;
+  while((m=re.exec(line))!==null){
+    lyric+=line.slice(last,m.index);
+    chords.push({col:lyric.length,text:m[1],raw:!isChord(m[1])});
+    last=m.index+m[0].length;
   }
+  lyric+=line.slice(last);
+  return {chords,lyric};
+}
+function hasChordPro(line){
+  const m=line.match(/\[([^\]]{1,16})\]/g);
+  if(!m) return false;
+  return m.some(x=>isChord(x.slice(1,-1)));
 }
 
-// ===== DEN =====
-function renderDay(){
-  const day=log[todayKey()]||[]; let k=0,p=0,f=0,c=0;
-  day.forEach(e=>{k+=e.k;p+=e.p;f+=e.f;c+=e.c});
-  const g=currentGoal(), t=macroTargets(), left=Math.round(g-k);
-  kcalLeft.textContent=left; kcalLeft.style.color=left<0?'var(--warn)':'var(--txt)';
-  kcalTxt.textContent=`${Math.round(k)} / ${g}`;
-  goalLab.textContent=g;
-  pTxt.textContent=`${p.toFixed(0)} / ${Math.round(t.p)} г`;
-  fTxt.textContent=`${f.toFixed(0)} / ${Math.round(t.f)} г`;
-  cTxt.textContent=`${c.toFixed(0)} / ${Math.round(t.c)} г`;
-  const pct=Math.min(k/g,1);
-  ringFill.style.strokeDashoffset=326.7*(1-pct);
-  ringFill.style.stroke=k>g?'var(--warn)':'var(--acc)';
-  barK.style.width=(pct*100)+'%';
-  barP.style.width=Math.min(p/t.p*100,100)+'%';
-  barF.style.width=Math.min(f/t.f*100,100)+'%';
-  barC.style.width=Math.min(c/t.c*100,100)+'%';
-  if(!day.length){dayList.innerHTML='<div class="empty">Пока пусто.<br>Жми <b>+</b> и выбирай продукт или блюдо.</div>';return;}
-  dayList.innerHTML=day.map((e,i)=>`<div class="entry"><div class="info"><b>${e.name}</b><small>${e.g} г · Б${e.p.toFixed(1)} Ж${e.f.toFixed(1)} У${e.c.toFixed(1)}</small></div><div class="kcal">${Math.round(e.k)}<s>ккал</s></div><button class="del" onclick="delEat(${i})">×</button></div>`).join('');
-}
-function delEat(i){log[todayKey()].splice(i,1);DB.save('cc_log',log);renderDay();}
+/* Раскладка строки: аккорды + слова -> группы «слов», каждая из которых
+   не разрывается при переносе. Именно это позволяет крутить кегль как угодно. */
+function buildRow(chords,lyric){
+  lyric = lyric==null ? '' : lyric.replace(/\s+$/,'');
+  const L=lyric.length;
+  if(L===0) return chords.map(c=>({units:[{chord:c,text:''}],tail:true}));
 
-// ===== BAZA (produkty + blyuda) =====
-function allItems(){
-  return [
-    ...dishes.map(d=>({...d,_type:'dish'})),
-    ...base.map(b=>({...b,_type:'raw'}))
-  ];
-}
-function renderBase(){
-  const q=(srch.value||'').toLowerCase();
-  const items=allItems().filter(x=>x.name.toLowerCase().includes(q));
-  baseCount.textContent=base.length+dishes.length;
-  if(!items.length){baseList.innerHTML='<div class="empty">Ничего не найдено</div>';return;}
-  baseList.innerHTML=items.map(x=>{
-    const tag=x._type==='dish'?'<span class="tag dish">блюдо</span>':'<span class="tag raw">продукт</span>';
-    const edit=x._type==='raw'?`<button class="del" style="color:var(--dim);font-size:16px" onclick="event.stopPropagation();openEditProd(${x.id})">✎</button>`:'';
-    const del=`<button class="del" onclick="event.stopPropagation();delItem('${x._type}',${x.id})">×</button>`;
-    const kcalColor=(!x.k||x.k===0)?'style="color:var(--warn)"':'';
-    return `<div class="prod" onclick="pickToEat('${x._type}',${x.id})"><div><b>${x.name}</b>${tag}<div class="mini"><span>Б ${x.p}</span><span>Ж ${x.f}</span><span>У ${x.c}</span></div></div><div class="pk" ${kcalColor}>${x.k}<s>ккал/100г</s></div>${edit}${del}</div>`;
-  }).join('');
-}
-function delItem(type,id){
-  if(!confirm('Удалить?'))return;
-  if(type==='dish')dishes=dishes.filter(d=>d.id!=id),DB.save('cc_dishes',dishes);
-  else base=base.filter(b=>b.id!=id),DB.save('cc_base',base);
-  renderBase();
-}
+  // колонки не трогаем: аккорд над пробелом — это чаще всего затакт, а не съехавшая вёрстка
+  const cs=chords.map(c=>({...c})).sort((a,b)=>a.col-b.col);
 
-// ===== DOBAVIT EDU =====
-function onFab(){
-  const cur=document.querySelector('.page.on').id;
-  if(cur==='page-weight'){openWeight();return;}
-  if(cur==='page-base'){openM('mPick');return;}
-  if(cur==='page-goal'||cur==='page-plan'){tab('day');return;}
-  openM('mEat');renderEatPick();
-}
-function renderEatPick(){
-  const q=(eatSrch.value||'').toLowerCase();
-  const items=allItems().filter(x=>x.name.toLowerCase().includes(q));
-  eatPick.innerHTML=`<div class="prod" onclick="closeM('mEat');openM('mPick')" style="border-style:dashed;justify-content:center"><b style="color:var(--acc)">+ нет в базе — создать</b></div>`+
-   items.map(x=>{const tag=x._type==='dish'?'<span class="tag dish">блюдо</span>':'';
-    return `<div class="prod" onclick="pickToEat('${x._type}',${x.id})"><div><b>${x.name}</b>${tag}<div class="mini"><span>Б ${x.p}</span><span>Ж ${x.f}</span><span>У ${x.c}</span></div></div><div class="pk">${x.k}<s>ккал/100г</s></div></div>`;}).join('');
-}
-function pickToEat(type,id){
-  pick=(type==='dish'?dishes:base).find(x=>x.id==id);
-  closeM('mEat');
-  gramName.textContent=pick.name;
-  gramPer.textContent=`на 100 г: ${pick.k} ккал · Б${pick.p} Ж${pick.f} У${pick.c}`;
-  gramVal.value=''; ['gramKcal','gramP','gramF','gramC'].forEach(x=>document.getElementById(x).textContent='0');
-  openM('mGram'); setTimeout(()=>gramVal.focus(),250);
-}
-function calcGram(){const g=+gramVal.value||0,r=g/100;
-  gramKcal.textContent=Math.round(pick.k*r);gramP.textContent=(pick.p*r).toFixed(1);
-  gramF.textContent=(pick.f*r).toFixed(1);gramC.textContent=(pick.c*r).toFixed(1);}
-function addEat(){const g=+gramVal.value;if(!g||g<=0)return;const r=g/100,d=todayKey();
-  (log[d]=log[d]||[]).push({name:pick.name,g,k:pick.k*r,p:pick.p*r,f:pick.f*r,c:pick.c*r});
-  DB.save('cc_log',log);closeM('mGram');tab('day');renderDay();}
+  const cuts=new Set([0]);
+  for(let i=0;i<L;i++) if(!/\s/.test(lyric[i]) && (i===0||/\s/.test(lyric[i-1]))) cuts.add(i);
+  for(const c of cs) if(c.col<L) cuts.add(c.col);
+  const cl=[...cuts].sort((a,b)=>a-b);
 
-// ===== PRODUKT =====
-let editProdId=null; // если редактируем — id, иначе null
-// считает калории из БЖУ и показывает подсказку (но не затирает ручной ввод)
-function autoKcal(){
-  const p=+pP.value||0, f=+pF.value||0, c=+pC.value||0;
-  const auto=Math.round(p*4+f*9+c*4);
-  pKhint.innerHTML = pK.value
-    ? `Из БЖУ вышло бы <b style="color:var(--txt)">${auto}</b> ккал. Сейчас стоит твоё значение.`
-    : `Посчитаю из БЖУ: <b style="color:var(--txt)">${auto}</b> ккал. Можешь вписать своё.`;
-}
-function openNewProd(){editProdId=null;prodTitle.textContent='Новый продукт';
-  ['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
-  pKhint.innerHTML='Оставь пустым — посчитаю из БЖУ автоматически (Б×4 + Ж×9 + У×4).';
-  openM('mProd');}
-function openEditProd(id){editProdId=id;const b=base.find(x=>x.id==id);if(!b)return;
-  prodTitle.textContent='Изменить продукт';
-  pName.value=b.name;pK.value=b.k||'';pP.value=b.p||'';pF.value=b.f||'';pC.value=b.c||'';
-  autoKcal();openM('mProd');}
-function saveProd(){
-  const name=pName.value.trim();
-  if(!name)return alert('Нужно название');
-  const p=+pP.value||0, f=+pF.value||0, c=+pC.value||0;
-  // калории: если поле пустое — считаем из БЖУ; иначе берём введённое
-  const k = pK.value!=='' ? +pK.value : Math.round(p*4+f*9+c*4);
-  if(editProdId!==null){
-    const b=base.find(x=>x.id==editProdId);
-    if(b){b.name=name;b.k=k;b.p=p;b.f=f;b.c=c;}
-  } else {
-    base.push({id:newId(),name,k,p,f,c});
+  const at=new Map();                       // на одну колонку может прийтись несколько аккордов: [Am][Dm]слово
+  for(const c of cs) if(c.col<L){ if(!at.has(c.col)) at.set(c.col,[]); at.get(c.col).push(c); }
+
+  const groups=[]; let cur=null, attach=false;
+  for(let k=0;k<cl.length;k++){
+    const s=cl[k], e=(k+1<cl.length?cl[k+1]:L);
+    if(s>=e) continue;
+    const text=lyric.slice(s,e);
+    const here=at.get(s)||[];
+    const wordStart = s===0 || /\s/.test(lyric[s-1]) || /\s/.test(lyric[s]);
+    if(!cur || (wordStart && !attach)){ cur={units:[]}; groups.push(cur); }
+    for(let j=0;j<here.length-1;j++) cur.units.push({chord:here[j],text:''});
+    cur.units.push({chord:here.length?here[here.length-1]:null,text});
+    // аккорд, стоящий над пробелом, держит следующее слово при себе — чтобы перенос их не развёл
+    attach = here.length>0 && !/\S/.test(text);
   }
-  DB.save('cc_base',base);
-  ['pName','pK','pP','pF','pC'].forEach(x=>document.getElementById(x).value='');
-  editProdId=null;closeM('mProd');renderBase();
+  for(const c of cs) if(c.col>=L) groups.push({units:[{chord:c,text:''}],tail:true});
+  return groups;
 }
 
-// ===== BLYUDO (TK) =====
-function openDish(){dishIngs=[];dName.value='';dYield.value='';renderDIngs();calcDish();openM('mDish');}
-function renderDiPick(){const q=(diSrch.value||'').toLowerCase();
-  const items=base.filter(b=>b.name.toLowerCase().includes(q));
-  diPick.innerHTML=items.map(b=>`<div class="prod" onclick="chooseDi(${b.id})"><div><b>${b.name}</b><div class="mini"><span>Б ${b.p}</span><span>Ж ${b.f}</span><span>У ${b.c}</span></div></div><div class="pk">${b.k}<s>ккал/100г</s></div></div>`).join('');
-}
-function chooseDi(id){diPick_sel=base.find(b=>b.id==id);diName.textContent=diPick_sel.name;diGram.value='';closeM2('mDishIng');openM2('mDishGram');setTimeout(()=>diGram.focus(),250);}
-let diPick_sel=null;
-function addIng(){const g=+diGram.value;if(!g||g<=0)return;
-  dishIngs.push({pid:diPick_sel.id,name:diPick_sel.name,g});
-  closeM2('mDishGram');renderDIngs();calcDish();}
-function rmIng(i){dishIngs.splice(i,1);renderDIngs();calcDish();}
-function renderDIngs(){
-  if(!dishIngs.length){dIngList.innerHTML='<div class="empty" style="padding:18px">Пусто — добавь ингредиенты</div>';return;}
-  dIngList.innerHTML=dishIngs.map((x,i)=>`<div class="ing-row"><span class="n">${x.name}</span><span class="g">${x.g} г</span><button class="x" onclick="rmIng(${i})">×</button></div>`).join('');
-}
-function dishTotals(){let k=0,p=0,f=0,c=0,raw=0;
-  dishIngs.forEach(x=>{const b=base.find(o=>o.id===x.pid);if(!b)return;const r=x.g/100;
-    k+=b.k*r;p+=b.p*r;f+=b.f*r;c+=b.c*r;raw+=x.g;});
-  return{k,p,f,c,raw};}
-function calcDish(){const t=dishTotals();dRaw.textContent=Math.round(t.raw);
-  const y=+dYield.value;
-  if(!dishIngs.length||!y){dCalc.innerHTML='Добавь ингредиенты и выход';return;}
-  const r=100/y;
-  dCalc.innerHTML=`
-    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
-      <span style="font-family:'Bricolage Grotesque';font-size:32px;font-weight:800;color:var(--acc)">${Math.round(t.k*r)}</span>
-      <span style="color:var(--dim);font-size:13px">ккал на 100 г готового</span>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:12px">
-      <span class="pill" style="color:var(--p)">Б ${(t.p*r).toFixed(1)}</span>
-      <span class="pill" style="color:var(--f)">Ж ${(t.f*r).toFixed(1)}</span>
-      <span class="pill" style="color:var(--c)">У ${(t.c*r).toFixed(1)}</span>
-    </div>
-    <div style="border-top:1px solid var(--line);padding-top:10px;font-size:13px;color:var(--dim)">
-      Всё блюдо целиком (${Math.round(y)} г): <b style="font-family:'Bricolage Grotesque';color:var(--txt);font-size:16px">${Math.round(t.k)}</b> ккал
-    </div>`;
-}
-function saveDish(){const name=dName.value.trim(),y=+dYield.value;
-  if(!name)return alert('Назови блюдо');
-  if(!dishIngs.length)return alert('Добавь хоть один ингредиент');
-  if(!y||y<=0)return alert('Укажи выход готового блюда');
-  const t=dishTotals(),r=100/y;
-  dishes.push({id:newId(),name,k:Math.round(t.k*r),p:+(t.p*r).toFixed(1),f:+(t.f*r).toFixed(1),c:+(t.c*r).toFixed(1),yield:y,ings:[...dishIngs]});
-  DB.save('cc_dishes',dishes);closeM('mDish');renderBase();}
-
-// ===== VES =====
-function openWeight(){wVal.value='';openM('mWeight');setTimeout(()=>wVal.focus(),250);}
-function saveWeight(){const kg=+wVal.value;if(!kg)return;const d=todayKey();
-  const ex=weights.find(w=>w.d===d);if(ex)ex.kg=kg;else weights.push({d,kg});
-  weights.sort((a,b)=>a.d.localeCompare(b.d));DB.save('cc_weights',weights);closeM('mWeight');renderWeight();}
-function renderWeight(){
-  if(!weights.length){wNow.textContent='—';wDelta.textContent='Записей пока нет';wList.innerHTML='';drawChart();return;}
-  const last=weights[weights.length-1];wNow.textContent=last.kg;
-  if(weights.length>1){const diff=(last.kg-weights[0].kg).toFixed(1),up=diff>0;
-    wDelta.innerHTML=`<span style="color:${up?'var(--warn)':'var(--ok)'}">${up?'▲':'▼'} ${Math.abs(diff)} кг</span> <span style="color:var(--dim)">с начала</span>`;
-  }else wDelta.textContent='Добавь ещё точку — покажу динамику';
-  wList.innerHTML=[...weights].reverse().map(w=>`<div class="wlog"><span>${new Date(w.d).toLocaleDateString('ru',{day:'numeric',month:'short',year:'numeric'})}</span><b>${w.kg} кг</b></div>`).join('');
-  drawChart();
-}
-function drawChart(){const cv=wchart,dpr=devicePixelRatio||1,W=cv.clientWidth,H=160;
-  cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,W,H);
-  if(weights.length<2)return;
-  const ys=weights.map(w=>w.kg),mn=Math.min(...ys)-0.5,mx=Math.max(...ys)+0.5;
-  const px=i=>20+i*(W-40)/(weights.length-1),py=v=>H-20-(v-mn)/(mx-mn)*(H-40);
-  x.strokeStyle='#ff7a3d';x.lineWidth=2.5;x.beginPath();
-  weights.forEach((w,i)=>i?x.lineTo(px(i),py(w.kg)):x.moveTo(px(i),py(w.kg)));x.stroke();
-  x.lineTo(px(weights.length-1),H-20);x.lineTo(px(0),H-20);x.closePath();x.fillStyle='rgba(255,122,61,.12)';x.fill();
-  x.fillStyle='#ffd23d';weights.forEach((w,i)=>{x.beginPath();x.arc(px(i),py(w.kg),3.5,0,7);x.fill();});
-}
-
-// ===== NAV / MODAL =====
-function tab(p){document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));
-  document.getElementById('page-'+p).classList.add('on');
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
-  if(p==='base')renderBase();if(p==='weight')renderWeight();
-  if(p==='goal'){fillNormInputs();recalcNorm();fillMacroInputs();renderMacroCalc();}
-  if(p==='plan'){fillPlanInputs();renderPlan();}}
-function fillNormInputs(){gSex.value=norm.sex;gAge.value=norm.age||'';gH.value=norm.h||'';gW.value=norm.w||'';gAct.value=norm.act;
-  [...goalMode.children].forEach(b=>b.classList.toggle('on',b.dataset.m===norm.mode));
-  gManual.value=norm.manual||'';}
-function openM(id){document.getElementById(id).classList.add('on');}
-function closeM(id){document.getElementById(id).classList.remove('on');}
-function openM2(id){document.getElementById(id).style.zIndex=40;openM(id);}
-function closeM2(id){closeM(id);}
-document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on')}));
-
-// ===== PROGNOZ =====
-const PCT_MAX=1.3; // верхний предел темпа
-function checkPct(){
-  const v=+plPct.value||0;
-  if(v>PCT_MAX){
-    plPct.value=PCT_MAX;
-    plPctHint.innerHTML=`<span class="sumbad">Предел ${PCT_MAX}% в неделю — выше клинически безопасного. Поставил максимум.</span>`;
-  } else if(v>1){
-    plPctHint.innerHTML=`<span style="color:var(--f)">Выше ~1%/нед — агрессивный темп. Норм на старте при высоком весе, пересмотри по мере снижения.</span>`;
-  } else {
-    plPctHint.innerHTML='Темп = % от ТЕКУЩЕГО веса каждую неделю. По мере похудения граммы сами уменьшаются.';
-  }
-}
-// строит массив недель: затухающая модель, пока вес > goal или не кончились недели
-function computeRows(start,goal,pct,weeks,startDate){
-  const rows=[]; let w=start; const r=pct/100;
-  const base=startDate?new Date(startDate):new Date();
-  for(let i=0;i<weeks;i++){
-    if(w<=goal)break;
-    const loss=w*r;
-    let end=w-loss;
-    if(end<goal)end=goal;
-    const d0=new Date(base); d0.setDate(d0.getDate()+i*7);
-    const d1=new Date(base); d1.setDate(d1.getDate()+(i+1)*7);
-    rows.push({n:i+1,d0:d0.toISOString().slice(0,10),d1:d1.toISOString().slice(0,10),
-               wStart:+w.toFixed(1),wEnd:+end.toFixed(1),loss:Math.round((w-end)*1000)});
-    w=end;
-    if(w<=goal)break;
-  }
-  return rows;
-}
-function buildPlan(){
-  const start=+plStart.value, goal=+plGoal.value, pct=+plPct.value, weeks=+plWeeks.value||52;
-  if(!start||!goal)return alert('Введи стартовый и целевой вес');
-  if(goal>=start)return alert('Цель должна быть меньше старта');
-  if(!pct||pct<=0)return alert('Введи темп %');
-  const date=plDate.value||todayKey();
-  const rows=computeRows(start,goal,pct,weeks,date);
-  plan={start,goal,pct,weeks,date,rows};
-  DB.save('cc_plan',plan);
-  renderPlan();
-}
-function recalcFromNow(){
-  if(!plan)return alert('Сначала зафиксируй план');
-  const now=weights.length?weights[weights.length-1].kg:plan.start;
-  const rows=computeRows(now,plan.goal,plan.pct,plan.weeks,todayKey());
-  renderPlanTable(rows,'от текущего веса '+now+' кг, темп '+plan.pct+'%');
-  planTableHead.style.display='flex'; planMode.textContent='пересчёт от факта';
-}
-function fillPlanInputs(){
-  if(!plan)return;
-  plStart.value=plan.start;plGoal.value=plan.goal;plPct.value=plan.pct;plWeeks.value=plan.weeks;plDate.value=plan.date;
-}
-function renderPlan(){
-  if(!plan){planSummary.innerHTML='<div class="empty">Заполни поля и зафиксируй план.<br>Прогноз появится здесь.</div>';
-    planTable.innerHTML='';planTableHead.style.display='none';return;}
-  const now=weights.length?weights[weights.length-1].kg:plan.start;
-  const r=plan.pct/100;
-  const gNow=Math.round(now*r*1000), gStart=Math.round(plan.start*r*1000), gGoal=Math.round(plan.goal*r*1000);
-  const totalWeeks=plan.rows.length;
-  const lastDate=plan.rows.length?plan.rows[plan.rows.length-1].d1:'';
-  planSummary.innerHTML=`
-    <div class="wcard">
-      <div style="font-size:13px;color:var(--dim);margin-bottom:10px">Темп ${plan.pct}% в неделю · цель ${plan.goal} кг</div>
-      <div class="wlog"><span>Сейчас (${now} кг) уходит</span><b>${gNow} г/нед</b></div>
-      <div class="wlog"><span>На старте (${plan.start} кг) было</span><b>${gStart} г/нед</b></div>
-      <div class="wlog"><span>У цели (${plan.goal} кг) будет</span><b>${gGoal} г/нед</b></div>
-      <div class="wlog" style="border:none"><span>До цели по плану</span><b>~${totalWeeks} нед (${fmtShort(lastDate)})</b></div>
-    </div>`;
-  renderPlanTable(plan.rows,'зафиксированный план');
-  planTableHead.style.display='flex'; planMode.textContent='план';
-}
-function fmtShort(iso){ if(!iso)return''; return new Date(iso).toLocaleDateString('ru',{day:'numeric',month:'short',year:'2-digit'}); }
-function renderPlanTable(rows,caption){
-  if(!rows.length){planTable.innerHTML='<div class="empty">Нет недель для показа</div>';return;}
-  // сопоставление с фактическим весом по дате (если есть запись близко к концу недели)
-  const html=rows.map(row=>{
-    // ищем факт. вес записанный в пределах недели
-    const fact=weights.find(w=>w.d>=row.d0 && w.d<=row.d1);
-    let factHtml='';
-    if(fact){
-      const diff=(fact.kg-row.wEnd).toFixed(1);
-      const col=diff>0?'var(--warn)':'var(--ok)';
-      factHtml=`<span style="color:${col};font-size:11px">факт ${fact.kg} (${diff>0?'+':''}${diff})</span>`;
+function parseSong(text){
+  const raw=String(text||'').replace(/\r\n?/g,'\n').replace(/\t/g,'    ').split('\n');
+  const lines=raw.map(l=>l.replace(/\s+$/,''));
+  const blocks=[]; let stat={chords:0,rows:0,usesH:false,hasB:false};
+  const tally=(cs)=>{
+    for(const c of cs){
+      if(c.raw) continue;
+      stat.chords++;
+      const p=parseChord(c.text);
+      if(p && (p.root==='H'||p.bass==='H')) stat.usesH=true;
+      if(ambiguousB(c.text)) stat.hasB=true;
     }
-    return `<div class="wlog" style="align-items:center">
-      <span style="flex:1">Нед ${row.n}<br><span style="font-size:10px">${fmtShort(row.d1)}</span></span>
-      <span style="text-align:right">
-        <b>${row.wStart} → ${row.wEnd}</b>
-        <span style="font-size:10px;color:var(--dim);display:block">−${row.loss} г · ${factHtml||'факта нет'}</span>
-      </span>
-    </div>`;
-  }).join('');
-  planTable.innerHTML=`<div style="font-size:11px;color:var(--dim);margin-bottom:8px">${caption}</div>`+html;
-}
-
-// ===== BACKUP =====
-function exportData(){
-  const dump={base,dishes,log,weights,norm,macro,plan,_v:1,_date:new Date().toISOString()};
-  const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='kitchen-backup-'+todayKey()+'.json';
-  a.click(); URL.revokeObjectURL(a.href);
-}
-function importData(e){
-  const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{
-    try{
-      const d=JSON.parse(r.result);
-      if(d.base)base=d.base; if(d.dishes)dishes=d.dishes; if(d.log)log=d.log;
-      if(d.weights)weights=d.weights; if(d.norm)norm=d.norm; if(d.macro)macro=d.macro; if(d.plan)plan=d.plan;
-      DB.save('cc_base',base);DB.save('cc_dishes',dishes);DB.save('cc_log',log);
-      DB.save('cc_weights',weights);DB.save('cc_norm',norm);DB.save('cc_macro',macro);if(plan)DB.save('cc_plan',plan);
-      fillMacroInputs();fillNormInputs();recalcNorm();renderDay();
-      alert('Данные восстановлены ✓');
-    }catch(err){alert('Не удалось прочитать файл — он повреждён или не от этого приложения')}
   };
-  r.readAsText(f); e.target.value='';
+
+  for(let i=0;i<lines.length;i++){
+    const ln=lines[i];
+    if(!ln.trim()){ blocks.push({type:'blank'}); continue; }
+
+    if(/^\{(?:t|title|st|subtitle|artist)\s*:/i.test(ln.trim())) continue;   // директивы съедаются на импорте
+
+    if(hasChordPro(ln)){
+      const {chords,lyric}=chordProSplit(ln);
+      tally(chords); stat.rows++;
+      blocks.push({type:'row',groups:buildRow(chords,lyric),hasch:chords.length>0});
+      continue;
+    }
+
+    const sm=SECT_RE.exec(ln);
+    if(sm && !isChordLine(ln)){
+      blocks.push({type:'sect',text:(sm[1]||sm[2]||sm[3]||'').trim()});
+      continue;
+    }
+
+    if(isChordLine(ln)){
+      const chords=chordTokens(ln);
+      tally(chords);
+      const nxt=lines[i+1];
+      const pairs = nxt!==undefined && nxt.trim() && !isChordLine(nxt) && !(SECT_RE.test(nxt)) && !hasChordPro(nxt);
+      if(pairs){ blocks.push({type:'row',groups:buildRow(chords,nxt),hasch:true}); stat.rows++; i++; }
+      else blocks.push({type:'row',groups:buildRow(chords,''),hasch:true});
+      continue;
+    }
+
+    blocks.push({type:'row',groups:buildRow([],ln),hasch:false});
+    stat.rows++;
+  }
+  return {blocks,stat};
 }
 
-// ===== START =====
-// Миграция: чиним старые гигантские id (Date.now), из-за которых ломался поиск
-(function migrateIds(){
-  let changed=false, next=1;
-  const used=new Set();
-  // присваиваем короткие id всем продуктам, запоминаем старый→новый
-  const map={};
-  base.forEach(b=>{ const old=b.id; b.id=next++; if(old!==b.id){map[old]=b.id;changed=true;} used.add(b.id); });
-  dishes.forEach(d=>{ const old=d.id; d.id=next++; if(old!==d.id)changed=true;
-    // чиним ссылки ингредиентов блюда на продукты
-    if(d.ings)d.ings.forEach(ing=>{ if(map[ing.pid]!==undefined){ing.pid=map[ing.pid];changed=true;} });
-  });
-  // Чиним продукты с нулевыми калориями, но заполненным БЖУ — считаем из БЖУ
-  base.forEach(b=>{
-    if((!b.k||b.k===0) && ((b.p||0)+(b.f||0)+(b.c||0))>0){
-      b.k=Math.round((b.p||0)*4+(b.f||0)*9+(b.c||0)*4); changed=true;
+function firstChord(blocks){
+  for(const b of blocks){
+    if(b.type!=='row') continue;
+    for(const g of b.groups) for(const u of g.units) if(u.chord && !u.chord.raw) return u.chord.text;
+  }
+  return null;
+}
+/* ===CORE-END=== */
+
+/* =========================================================================
+   ХРАНИЛИЩЕ: window.storage внутри Claude, localStorage — в скачанном файле
+   ========================================================================= */
+const KEY='songbook.v1';
+const hasWS = typeof window!=='undefined' && window.storage && typeof window.storage.get==='function';
+const store={
+  async get(){
+    try{
+      if(hasWS){ const r=await window.storage.get(KEY); return r&&r.value?JSON.parse(r.value):null; }
+      const s=localStorage.getItem(KEY); return s?JSON.parse(s):null;
+    }catch(e){ return null; }
+  },
+  async set(v){
+    const s=JSON.stringify(v);
+    try{ if(hasWS) await window.storage.set(KEY,s); else localStorage.setItem(KEY,s); }
+    catch(e){ toast('Не удалось сохранить'); }
+  }
+};
+
+const DEMO=`[Проба]
+Am              Dm
+Это демонстрационная песня, её можно удалить
+       E7                Am
+Аккорды сверху, слова снизу, как в тетрадке
+
+Am           Dm
+Крутите A+ и A− — строка переносится,
+     E7                     Am
+и каждый аккорд едет вместе со своим слогом
+
+Dm  E7  Am`;
+
+let S={
+  songs:{}, tabs:[], active:null,
+  settings:{fs:19,theme:'dark',sort:'recent',speed:28,wake:true}
+};
+const cache=new Map();
+let saveT=null;
+function save(){ clearTimeout(saveT); saveT=setTimeout(()=>store.set(S),350); }
+
+const $=(id)=>document.getElementById(id);
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),1600); }
+const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
+
+function newSong(title,artist,text){
+  const id=uid();
+  S.songs[id]={id,title:title||'Без названия',artist:artist||'',text:text||'',
+    transpose:0,bFlat:null,flats:false,hide:false,pos:0,created:Date.now()};
+  return id;
+}
+function doc(id){
+  if(!cache.has(id)) cache.set(id,parseSong(S.songs[id].text));
+  return cache.get(id);
+}
+/* Как читать буквы при транспонировании.
+   bFlat === null значит «пользователь ещё не решил, что тут за B» — читаем как си и помечаем. */
+function readOpt(s,d){
+  return {bFlat:s.bFlat===true, flats:!!s.flats, useH:!!(d&&d.stat.usesH)};
+}
+
+/* ---------- отрисовка ---------- */
+function renderSheet(){
+  const sheet=$('sheet'); sheet.textContent='';
+  const id=S.active; if(!id) return;
+  const s=S.songs[id], d=doc(id);
+  const opt=readOpt(s,d);
+  sheet.classList.toggle('nochords',!!s.hide);
+  const frag=document.createDocumentFragment();
+  for(const b of d.blocks){
+    if(b.type==='blank'){ const e=document.createElement('div'); e.className='blank'; frag.appendChild(e); continue; }
+    if(b.type==='sect'){ const e=document.createElement('div'); e.className='sect'; e.textContent=b.text; frag.appendChild(e); continue; }
+    const row=document.createElement('div'); row.className='line'+(b.hasch?' hasch':'');
+    for(const g of b.groups){
+      const ge=document.createElement('span'); ge.className='grp';
+      for(const u of g.units){
+        const ue=document.createElement('span'); ue.className='unit';
+        const ch=document.createElement('span'); ch.className='ch'+(u.chord&&u.chord.raw?' raw':'');
+        if(u.chord){
+          ch.textContent = u.chord.raw ? u.chord.text : transposeChord(u.chord.text,s.transpose,opt);
+          if(s.transpose && !u.chord.raw && s.bFlat==null && ambiguousB(u.chord.text)) ch.classList.add('guess');
+        }
+        const ly=document.createElement('span'); ly.className='ly'; ly.textContent=u.text;
+        ue.appendChild(ch); ue.appendChild(ly); ge.appendChild(ue);
+      }
+      row.appendChild(ge);
     }
+    frag.appendChild(row);
+  }
+  sheet.appendChild(frag);
+}
+
+function renderTabs(){
+  const box=$('tabs'); box.textContent='';
+  for(const id of S.tabs){
+    const s=S.songs[id]; if(!s) continue;
+    const t=document.createElement('div'); t.className='tab'+(id===S.active?' on':'');
+    const n=document.createElement('span'); n.className='ttl'; n.textContent=s.title;
+    n.onclick=()=>openTab(id);
+    const x=document.createElement('span'); x.className='x'; x.textContent='✕';
+    x.onclick=(e)=>{e.stopPropagation();closeTab(id);};
+    t.appendChild(n); t.appendChild(x); box.appendChild(t);
+    if(id===S.active) setTimeout(()=>t.scrollIntoView({inline:'center',block:'nearest'}),0);
+  }
+}
+
+function renderHead(){
+  const on=!!S.active;
+  $('head').style.display=on?'flex':'none';
+  $('ctl').style.display=on?'flex':'none';
+  $('stage').style.display=on?'block':'none';
+  $('empty').style.display=on?'none':'flex';
+  if(!on){ $('auto').classList.remove('on'); return; }
+  const s=S.songs[S.active], d=doc(S.active);
+  $('hTitle').textContent=s.title;
+  $('hArtist').textContent=s.artist||'';
+  const fc=firstChord(d.blocks);
+  const key=fc?transposeChord(fc,s.transpose,readOpt(s,d)):'—';
+  $('tKey').textContent = s.transpose ? key+' '+(s.transpose>0?'+':'')+s.transpose : key;
+}
+
+function renderAll(){ renderTabs(); renderHead(); renderSheet(); }
+
+/* ---------- вкладки ---------- */
+function openTab(id){
+  if(!S.songs[id]) return;
+  if(S.active && S.songs[S.active]) S.songs[S.active].pos=$('stage').scrollTop;
+  if(!S.tabs.includes(id)) S.tabs.push(id);
+  S.active=id; stopAuto();
+  renderAll();
+  requestAnimationFrame(()=>{ $('stage').scrollTop=S.songs[id].pos||0; });
+  wakeOn(); save();
+}
+function closeTab(id){
+  const i=S.tabs.indexOf(id); if(i<0) return;
+  S.tabs.splice(i,1);
+  if(S.active===id) S.active=S.tabs[Math.min(i,S.tabs.length-1)]||null;
+  renderAll();
+  if(S.active) requestAnimationFrame(()=>{ $('stage').scrollTop=S.songs[S.active].pos||0; });
+  save();
+}
+function shiftTab(d){
+  const i=S.tabs.indexOf(S.active);
+  if(i<0||S.tabs.length<2) return;
+  openTab(S.tabs[(i+d+S.tabs.length)%S.tabs.length]);
+}
+
+/* ---------- шрифт и транспонирование ---------- */
+function applyFs(){ document.documentElement.style.setProperty('--fs',S.settings.fs+'px'); }
+function bumpFs(d){ S.settings.fs=Math.max(13,Math.min(46,S.settings.fs+d)); applyFs(); save(); }
+function bumpTr(d){
+  const s=S.songs[S.active]; if(!s) return;
+  const was=s.transpose;
+  s.transpose=Math.max(-11,Math.min(11,s.transpose+d));
+  if(!was && s.transpose && s.bFlat==null && doc(s.id).stat.hasB)
+    toast('B читаю как си. Не то — меню ⋯');
+  renderHead(); renderSheet(); save();
+}
+
+/* ---------- автопрокрутка ---------- */
+let rafId=null, acc=0, playing=false;
+function stopAuto(){ playing=false; cancelAnimationFrame(rafId); rafId=null; $('playBtn').textContent='▶'; }
+function startAuto(){
+  if(playing) return;
+  playing=true; $('playBtn').textContent='❚❚';
+  const st=$('stage'); acc=st.scrollTop; let last=performance.now();
+  const step=(t)=>{
+    if(!playing) return;
+    acc += S.settings.speed*(t-last)/1000; last=t;
+    st.scrollTop=acc;
+    if(st.scrollTop+st.clientHeight>=st.scrollHeight-1){ stopAuto(); return; }
+    rafId=requestAnimationFrame(step);
+  };
+  rafId=requestAnimationFrame(step);
+}
+
+/* ---------- экран ---------- */
+let wl=null;
+async function wakeOn(){ try{ if(S.settings.wake&&S.active&&'wakeLock' in navigator&&!wl){ wl=await navigator.wakeLock.request('screen'); wl.addEventListener('release',()=>{wl=null;}); } }catch(e){} }
+async function wakeOff(){ try{ if(wl) await wl.release(); }catch(e){} wl=null; }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') wakeOn(); });
+
+/* ---------- библиотека ---------- */
+function renderLib(){
+  const q=$('search').value.trim().toLowerCase();
+  const list=Object.values(S.songs).filter(s=>!q||(s.title+' '+s.artist).toLowerCase().includes(q));
+  list.sort((a,b)=> S.settings.sort==='abc' ? a.title.localeCompare(b.title,'ru') : b.created-a.created);
+  $('libSort').textContent = S.settings.sort==='abc'?'По алфавиту':'По дате';
+  const box=$('libList'); box.textContent='';
+  if(!list.length){ box.innerHTML='<div class="hint">Ничего нет. Кнопка «+» вверху — добавить.</div>'; return; }
+  for(const s of list){
+    const it=document.createElement('div'); it.className='item';
+    const m=document.createElement('div'); m.className='meta';
+    const t=document.createElement('div'); t.className='t'; t.textContent=s.title;
+    const a=document.createElement('div'); a.className='a'; a.textContent=s.artist||'—';
+    m.appendChild(t); m.appendChild(a);
+    m.onclick=()=>{ openTab(s.id); closeOv('ovLib'); };
+    const ed=document.createElement('button'); ed.className='act'; ed.textContent='✎'; ed.onclick=()=>editSong(s.id);
+    const dl=document.createElement('button'); dl.className='act'; dl.textContent='🗑'; dl.style.color='var(--danger)';
+    dl.onclick=()=>{ if(confirm('Удалить «'+s.title+'»?')) delSong(s.id); };
+    it.appendChild(m); it.appendChild(ed); it.appendChild(dl); box.appendChild(it);
+  }
+}
+function delSong(id){
+  delete S.songs[id]; cache.delete(id);
+  const i=S.tabs.indexOf(id); if(i>=0) S.tabs.splice(i,1);
+  if(S.active===id) S.active=S.tabs[0]||null;
+  renderAll(); renderLib(); save();
+}
+
+/* ---------- редактор ---------- */
+let edId=null, edPrev=false;
+function editSong(id){
+  edId=id; edPrev=false;
+  const s=id?S.songs[id]:null;
+  $('edTitle').textContent = s?'Правка':'Новая песня';
+  $('edName').value=s?s.title:''; $('edArt').value=s?s.artist:''; $('edText').value=s?s.text:'';
+  edStat(); openOv('ovEdit');
+}
+function edStat(){
+  const p=parseSong($('edText').value);
+  $('edStat').textContent = 'Разобрано: аккордов '+p.stat.chords+', строк с текстом '+p.stat.rows+'.';
+}
+function saveEd(){
+  const text=$('edText').value;
+  let title=$('edName').value.trim(), artist=$('edArt').value.trim();
+  const dt=/\{(?:t|title)\s*:\s*([^}]+)\}/i.exec(text), da=/\{(?:st|subtitle|artist)\s*:\s*([^}]+)\}/i.exec(text);
+  if(!title&&dt) title=dt[1].trim();
+  if(!artist&&da) artist=da[1].trim();
+  if(!title){ const l=text.split('\n').find(x=>x.trim()&&!isChordLine(x)); title=l?l.trim().slice(0,42):'Без названия'; }
+  if(!text.trim()){ toast('Пустой текст'); return; }
+  if(edId){
+    const s=S.songs[edId]; s.title=title; s.artist=artist; s.text=text;
+    cache.delete(edId);
+  }else{
+    edId=newSong(title,artist,text);
+  }
+  closeOv('ovEdit'); openTab(edId); renderLib(); save(); toast('Сохранено');
+}
+
+/* ---------- меню песни ---------- */
+function showMenu(items){
+  const c=$('menuCard'); c.textContent='';
+  for(const it of items){
+    const b=document.createElement('button');
+    b.innerHTML='<span>'+it.label+'</span>'+(it.val?'<span class="val">'+it.val+'</span>':'');
+    if(it.danger) b.classList.add('dn');
+    b.onclick=()=>{ $('menu').classList.remove('on'); it.act(); };
+    c.appendChild(b);
+  }
+  $('menu').classList.add('on');
+}
+function songMenu(){
+  const s=S.songs[S.active]; if(!s) return;
+  const d=doc(s.id);
+  const items=[{label:'Редактировать',act:()=>editSong(s.id)}];
+  if(d.stat.hasB) items.push({
+    label:'Читать B как',
+    val: s.bFlat===true?'си-бемоль':(s.bFlat===false?'си':'си (не задано)'),
+    act:()=>{ s.bFlat = s.bFlat===true ? false : true; renderHead(); renderSheet(); save();
+              toast('B читается как '+(s.bFlat?'си-бемоль':'си')); }
   });
-  if(changed){ DB.save('cc_base',base); DB.save('cc_dishes',dishes); }
+  showMenu(items.concat([
+    {label:'Знаки',val:s.flats?'бемоли ♭':'диезы ♯',act:()=>{s.flats=!s.flats;renderHead();renderSheet();save();}},
+    {label:s.hide?'Показать аккорды':'Скрыть аккорды',act:()=>{s.hide=!s.hide;renderSheet();save();}},
+    {label:'Сбросить транспонирование',act:()=>{s.transpose=0;renderHead();renderSheet();save();}},
+    {label:'Дублировать',act:()=>{const id=newSong(s.title+' (копия)',s.artist,s.text);openTab(id);save();}},
+    {label:'Удалить песню',danger:true,act:()=>{ if(confirm('Удалить «'+s.title+'»?')) delSong(s.id); }}
+  ]));
+}
+
+/* ---------- экспорт / импорт ---------- */
+function dump(){ return JSON.stringify({app:'songbook',v:1,at:new Date().toISOString(),songs:Object.values(S.songs)},null,1); }
+function doImport(txt){
+  let o; try{ o=JSON.parse(txt); }catch(e){ toast('Это не JSON'); return; }
+  const arr=Array.isArray(o)?o:(o.songs||[]);
+  if(!arr.length){ toast('Песен не найдено'); return; }
+  let n=0;
+  for(const s of arr){
+    if(!s||typeof s.text!=='string') continue;
+    const id=uid();
+    S.songs[id]={id,title:s.title||'Без названия',artist:s.artist||'',text:s.text,
+      transpose:s.transpose|0,bFlat:(s.bFlat===true||s.bFlat===false)?s.bFlat:null,
+      flats:!!s.flats,hide:false,pos:0,created:s.created||Date.now()};
+    n++;
+  }
+  renderLib(); save(); toast('Добавлено песен: '+n);
+}
+
+/* ---------- шторки ---------- */
+function openOv(id){ $(id).classList.add('on'); }
+function closeOv(id){ $(id).classList.remove('on'); }
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeOv(b.dataset.close));
+
+/* ---------- события ---------- */
+$('btnLib').onclick=()=>{ renderLib(); openOv('ovLib'); };
+$('btnNew').onclick=()=>editSong(null);
+$('btnFirst').onclick=()=>editSong(null);
+$('btnMore').onclick=songMenu;
+$('menu').onclick=(e)=>{ if(e.target.id==='menu') $('menu').classList.remove('on'); };
+$('fsUp').onclick=()=>bumpFs(2); $('fsDown').onclick=()=>bumpFs(-2);
+$('trUp').onclick=()=>bumpTr(1); $('trDown').onclick=()=>bumpTr(-1);
+$('tKey').onclick=()=>{ const s=S.songs[S.active]; if(s){ s.transpose=0; renderHead(); renderSheet(); save(); } };
+$('btnAuto').onclick=()=>{
+  const on=$('auto').classList.toggle('on');
+  $('btnAuto').classList.toggle('on',on);
+  if(!on) stopAuto();
+};
+$('playBtn').onclick=()=>playing?stopAuto():startAuto();
+$('spd').oninput=(e)=>{ S.settings.speed=+e.target.value; $('spdVal').textContent=S.settings.speed+' px/с'; save(); };
+$('stage').addEventListener('touchstart',()=>{ if(playing) stopAuto(); },{passive:true});
+$('stage').addEventListener('wheel',()=>{ if(playing) stopAuto(); },{passive:true});
+$('search').oninput=renderLib;
+$('libSort').onclick=()=>{ S.settings.sort=S.settings.sort==='abc'?'recent':'abc'; renderLib(); save(); };
+$('libSet').onclick=()=>openOv('ovData');
+$('edSave').onclick=saveEd;
+$('edText').oninput=()=>{ if(edPrev) edPreviewRender(); edStat(); };
+$('edPreview').onclick=()=>{
+  edPrev=!edPrev;
+  $('edPreview').textContent=edPrev?'Текст':'Разбор';
+  edPreviewRender();
+};
+function edPreviewRender(){
+  const ta=$('edText');
+  let pv=$('edPv');
+  if(!pv){ pv=document.createElement('div'); pv.id='edPv'; pv.style.cssText='font-size:var(--fs);border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--bg2);margin-bottom:10px'; ta.parentNode.parentNode.insertBefore(pv,ta.parentNode); }
+  pv.style.display=edPrev?'block':'none';
+  ta.parentNode.style.display=edPrev?'none':'block';
+  if(!edPrev) return;
+  pv.textContent='';
+  const {blocks}=parseSong(ta.value);
+  for(const b of blocks){
+    if(b.type==='blank'){ const e=document.createElement('div'); e.className='blank'; pv.appendChild(e); continue; }
+    if(b.type==='sect'){ const e=document.createElement('div'); e.className='sect'; e.textContent=b.text; pv.appendChild(e); continue; }
+    const row=document.createElement('div'); row.className='line'+(b.hasch?' hasch':'');
+    for(const g of b.groups){ const ge=document.createElement('span'); ge.className='grp';
+      for(const u of g.units){ const ue=document.createElement('span'); ue.className='unit';
+        const ch=document.createElement('span'); ch.className='ch'+(u.chord&&u.chord.raw?' raw':''); ch.textContent=u.chord?u.chord.text:'';
+        const ly=document.createElement('span'); ly.className='ly'; ly.textContent=u.text;
+        ue.appendChild(ch); ue.appendChild(ly); ge.appendChild(ue); }
+      row.appendChild(ge); }
+    pv.appendChild(row);
+  }
+}
+$('setTheme').onclick=()=>{
+  S.settings.theme=S.settings.theme==='dark'?'light':'dark';
+  applyTheme(); save();
+};
+$('setWake').onclick=()=>{
+  S.settings.wake=!S.settings.wake;
+  $('setWake').textContent='Не гасить экран: '+(S.settings.wake?'вкл':'выкл');
+  if(S.settings.wake) wakeOn(); else wakeOff();
+  save();
+};
+$('expFile').onclick=()=>{
+  const b=new Blob([dump()],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b); a.download='songbook-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+};
+$('expClip').onclick=async()=>{
+  try{ await navigator.clipboard.writeText(dump()); toast('Скопировано'); }
+  catch(e){ $('impText').value=dump(); toast('Буфер недоступен — копия в поле ниже'); }
+};
+$('impRun').onclick=()=>{ doImport($('impText').value); $('impText').value=''; };
+$('wipe').onclick=()=>{
+  if(!confirm('Стереть все песни без возврата?')) return;
+  S.songs={}; S.tabs=[]; S.active=null; cache.clear(); renderAll(); renderLib(); save();
+};
+
+// свайп между вкладками
+let tx=0,ty=0,tt=0;
+$('stage').addEventListener('touchstart',e=>{ if(e.touches.length!==1) return; tx=e.touches[0].clientX; ty=e.touches[0].clientY; tt=Date.now(); },{passive:true});
+$('stage').addEventListener('touchend',e=>{
+  const t=e.changedTouches[0], dx=t.clientX-tx, dy=t.clientY-ty;
+  if(Date.now()-tt<600 && Math.abs(dx)>72 && Math.abs(dx)>Math.abs(dy)*2) shiftTab(dx<0?1:-1);
+},{passive:true});
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT') return;
+  if(e.key==='+'||e.key==='=') bumpFs(2);
+  if(e.key==='-') bumpFs(-2);
+  if(e.key==='ArrowRight') shiftTab(1);
+  if(e.key==='ArrowLeft') shiftTab(-1);
+  if(e.key===' '){ e.preventDefault(); playing?stopAuto():startAuto(); }
+});
+
+function applyTheme(){
+  document.documentElement.dataset.theme=S.settings.theme;
+  $('setTheme').textContent='Тема: '+(S.settings.theme==='dark'?'тёмная':'светлая');
+  document.querySelector('meta[name=theme-color]').content=S.settings.theme==='dark'?'#12161d':'#f4efe4';
+}
+
+/* ---------- старт ---------- */
+(async function init(){
+  const saved=await store.get();
+  if(saved&&saved.songs){
+    S=Object.assign(S,saved);
+    S.settings=Object.assign({fs:19,theme:'dark',sort:'recent',speed:28,wake:true},saved.settings||{});
+    if(Array.isArray(saved.songs)){ const o={}; saved.songs.forEach(s=>o[s.id]=s); S.songs=o; }
+  }
+  if(!Object.keys(S.songs).length){ const id=newSong('Как это работает','Песенник',DEMO); S.tabs=[id]; S.active=id; }
+  S.tabs=S.tabs.filter(id=>S.songs[id]);
+  if(!S.songs[S.active]) S.active=S.tabs[0]||null;
+  applyTheme(); applyFs();
+  $('spd').value=S.settings.speed; $('spdVal').textContent=S.settings.speed+' px/с';
+  $('setWake').textContent='Не гасить экран: '+(S.settings.wake?'вкл':'выкл');
+  $('ver').textContent='Хранилище: '+(hasWS?'Claude':'этот браузер')+'. Песен: '+Object.keys(S.songs).length+'.';
+  renderAll();
+  if(S.active) requestAnimationFrame(()=>{ $('stage').scrollTop=S.songs[S.active].pos||0; });
+  wakeOn();
 })();
-today.textContent=fmtDate(new Date());wDate.textContent=fmtDate(new Date());
-fillMacroInputs();fillNormInputs();recalcNorm();renderDay();
-window.addEventListener('resize',()=>{if(document.getElementById('page-weight').classList.contains('on'))drawChart();});
+window.addEventListener('beforeunload',()=>{ if(S.active&&S.songs[S.active]) S.songs[S.active].pos=$('stage').scrollTop; store.set(S); });
 </script>
 </body>
 </html>
