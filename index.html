@@ -59,6 +59,7 @@ button{background:none;border:0;cursor:pointer}
 .grp-ctl button:active{background:var(--line)}
 .grp-ctl .sep{width:1px;align-self:stretch;background:var(--bg2)}
 #tKey{font-weight:600;color:var(--chord);font-variant-numeric:tabular-nums;min-width:52px}
+#tKey.guess{text-decoration:underline dotted currentColor;text-underline-offset:.22em}
 #fsVal{font-size:12px;color:var(--dim);min-width:30px;text-align:center}
 .pill{padding:7px 10px;border-radius:9px;background:var(--bg3);font-size:14px}
 .pill.on{background:var(--accent);color:#08120f}
@@ -418,6 +419,125 @@ function songKeyTokens(blocks){
   return out;
 }
 
+/* ------------------------------------------------------- ПОИСК ТОНИКИ
+   Нам нужна не тональность, а ТОНИКА: ступени считаются от высоты, набор
+   знаков при ключе в расчёте не участвует вообще. Это сильно проще
+   классического key-finding — и решается по самой последовательности,
+   без обращения наружу: в интернете лежит тональность записи или чужого
+   подбора, а нужен «дом» ИМЕННО ЭТОГО текста, возможно уже сдвинутого.
+
+   Улики, по убыванию надёжности: чем песня кончается, чем начинаются
+   секции, куда разрешаются доминанты, что чаще звучит, с чего начинается.
+   Плюс диатоническая подгонка — она одна отсекает соседей по квинте
+   (соль-мажор в песне убивает фа-мажор как кандидата).
+   Веса подобраны на синтетике; счёт каждого кандидата виден в меню ⋯. */
+function chordQuality(c){
+  const q=c.suf||'';
+  if(/^(?:dim|\u00b0|\u00f8)/.test(q)) return 'dim';
+  if(/^(?:m(?!aj)|min|Min|-)/.test(q)) return 'min';
+  if(/^(?:aug|\+)/.test(q)) return 'aug';
+  return 'maj';
+}
+function isDom7(c){
+  const q=c.suf||'';
+  if(chordQuality(c)!=='maj') return false;
+  if(/add/.test(q)) return false;
+  if(/(?:maj|Maj|MAJ|M|\u0394|\u2206)\s*7/.test(q)) return false;
+  return /(?:7|9|11|13)/.test(q);
+}
+/* Последовательность аккордов + структура: границы секций и места каденций. */
+function keySeq(blocks,o){
+  const opt=o||{}, seq=[], segs=[], lineFirst=[];
+  let cur=[], last=null;
+  const hardSect=blocks.some(b=>b.type==='sect');
+  const flush=()=>{ if(cur.length) segs.push(cur); cur=[]; };
+  for(const b of blocks){
+    if(b.type==='sect'){ flush(); continue; }
+    if(b.type==='blank'){ if(!hardSect) flush(); continue; }
+    if(b.type!=='row') continue;
+    let first=true; last=null;
+    for(const g of b.groups) for(const u of g.units){
+      if(!u.chord||u.chord.raw) continue;
+      const c=parseChord(u.chord.text); if(!c) continue;
+      const e={pc:pcOf(c.root,c.acc,opt.bFlat),q:chordQuality(c),dom:isDom7(c),
+               tok:keyToken(u.chord.text),cad:false};
+      seq.push(e); cur.push(e);
+      if(first){ lineFirst.push(e); first=false; }
+      last=e;
+    }
+    if(last) last.cad=true;                  // конец строки — место каденции
+  }
+  flush();
+  for(const g of segs) if(g.length) g[g.length-1].cad=true;
+  return {seq,segs,lineFirst};
+}
+const SCALE={maj:[0,2,4,5,7,9,11],min:[0,2,3,5,7,8,10]};
+const TPL={maj:{0:'maj',2:'min',4:'min',5:'maj',7:'maj',9:'min',11:'dim'},
+           min:{0:'min',2:'dim',3:'maj',5:'min',7:'min',8:'maj',10:'maj'}};
+const KW={fit:1.0,fin:1.8,ini:1.4,sIni:1.0,sIniCap:3.0,sFin:0.5,sFinCap:1.5,
+          dom:1.3,domCap:3.9,dom5:0.7,dom5Cap:2.8,lead:0.9,plag:0.2,plagCap:1.0,
+          lf:0.25,lfCap:2.0,freq:1.8,onlyDom:-2.5,onlyDim:-3.0,once:-0.8,sure:1.2};
+
+function keyFit(pc,mode,distinct){
+  let s=0;
+  for(const c of distinct){
+    const off=((c.pc-pc)%12+12)%12;
+    if(SCALE[mode].indexOf(off)<0){ s-=0.9; continue; }
+    const ok = c.q===TPL[mode][off] || (mode==='min'&&(off===7||off===5)&&c.q==='maj');
+    s += ok?0.5:0.15;
+  }
+  return s;
+}
+/* -> {token, margin, sure, alts:[{tok,score}]} либо null, если аккордов нет. */
+function detectKey(blocks,o){
+  const opt=o||{};
+  const {seq,segs,lineFirst}=keySeq(blocks,opt);
+  if(!seq.length) return null;
+  const cands=new Map(), dmap=new Map();
+  for(const e of seq){
+    if(!cands.has(e.tok)) cands.set(e.tok,{tok:e.tok,pc:e.pc,n:0,dom:0,dim:0});
+    const c=cands.get(e.tok); c.n++; if(e.dom)c.dom++; if(e.q==='dim')c.dim++;
+    if(!dmap.has(e.tok)) dmap.set(e.tok,{pc:e.pc,q:e.q});
+  }
+  const distinct=[...dmap.values()], cap=(v,m)=>Math.min(v,m), out=[];
+  for(const c of cands.values()){
+    let s=0;
+    if(seq[seq.length-1].pc===c.pc) s+=KW.fin;
+    if(seq[0].pc===c.pc)            s+=KW.ini;
+    let a=0,b=0;
+    for(const g of segs){                    // сегмент из одного аккорда не начало и не конец
+      if(g.length<2) continue;
+      if(g[0].pc===c.pc) a+=KW.sIni;
+      if(g[g.length-1].pc===c.pc) b+=KW.sFin;
+    }
+    s+=cap(a,KW.sIniCap)+cap(b,KW.sFinCap);
+    let lf=0; for(const e of lineFirst) if(e.pc===c.pc) lf+=KW.lf;
+    s+=cap(lf,KW.lfCap);
+    let d=0,d5=0,pl=0,ld=0;
+    for(let i=1;i<seq.length;i++){
+      if(seq[i].pc!==c.pc||seq[i-1].pc===c.pc) continue;
+      const p=seq[i-1], k=seq[i].cad?1:0.45;  // проходящий I-IV звучит как V-I: верим каденции
+      if(p.pc===(c.pc+7)%12){ if(p.dom) d+=KW.dom*k; else if(p.q==='maj') d5+=KW.dom5*k; }
+      else if(p.pc===(c.pc+5)%12 && p.q==='maj') pl+=KW.plag*k;
+      else if(p.pc===(c.pc+11)%12 && p.q==='dim') ld+=KW.lead;
+    }
+    s+=cap(d,KW.domCap)+cap(d5,KW.dom5Cap)+cap(pl,KW.plagCap)+ld;
+    s+=KW.freq*(c.n/seq.length);
+    s+=KW.fit*keyFit(c.pc,/m$/.test(c.tok)?'min':'maj',distinct);
+    if(c.dom===c.n) s+=KW.onlyDom;           // корень, звучащий только как X7, — это V, не I
+    if(c.dim===c.n) s+=KW.onlyDim;
+    if(c.n===1)     s+=KW.once;
+    out.push({tok:c.tok,score:+s.toFixed(2)});
+  }
+  out.sort((x,y)=>y.score-x.score);
+  const margin=out.length>1?+(out[0].score-out[1].score).toFixed(2):99;
+  const roots=new Set(seq.map(e=>e.pc)).size;
+  // словарь из двух аккордов не даёт различить I-IV; соседи по квинте вырождены всегда
+  const gap = out.length>1 ? ((cands.get(out[1].tok).pc-cands.get(out[0].tok).pc)%12+12)%12 : -1;
+  const need = KW.sure*((gap===5||gap===7)?1.6:1);
+  return {token:out[0].tok,margin,sure:roots>=3&&margin>=need,alts:out};
+}
+
 // ChordPro-строка -> пара (строка аккордов, строка слов)
 function chordProSplit(line){
   let lyric='', chords=[];
@@ -619,7 +739,12 @@ function el(tag,cls,txt){
 }
 /* Тоника в координатах ИСХОДНОГО текста: выбранная вручную или первый аккорд.
    Для песен, начинающихся не с тоники, автомат врёт — на то и ручной выбор. */
-function tonicOf(s,d){ return s.key || keyToken(firstChord(d.blocks)) || null; }
+function tonicInfo(s,d,opt){
+  if(s.key) return {tok:s.key,sure:true,det:null};
+  const det=detectKey(d.blocks,opt);
+  if(det) return {tok:det.token,sure:det.sure,det};
+  return {tok:keyToken(firstChord(d.blocks))||null,sure:false,det:null};
+}
 
 /* Что реально рисуем: если тоники нет (песня без аккордов) — откат к аккордам. */
 function viewMode(s,tPc){
@@ -645,7 +770,7 @@ function renderSheet(){
   const id=S.active; if(!id) return;
   const s=S.songs[id], d=doc(id);
   const opt=readOpt(s,d);
-  const tPc=tonicPcOf(tonicOf(s,d),opt);
+  const tPc=tonicPcOf(tonicInfo(s,d,opt).tok,opt);
   const mode=viewMode(s,tPc);
   // в ступенях аккорд интерпретируется всегда — отложить чтение B, как при нуле, уже нельзя
   const interp = mode!=='chords' || !!s.transpose;
@@ -699,8 +824,10 @@ function renderHead(){
   $('hTitle').textContent=s.title;
   $('hArtist').textContent=s.artist||'';
   const opt=readOpt(s,d);
-  const tk=tonicOf(s,d), tPc=tonicPcOf(tk,opt);
+  const ti=tonicInfo(s,d,opt), tk=ti.tok, tPc=tonicPcOf(tk,opt);
   const tail = s.transpose ? ' '+(s.transpose>0?'+':'')+s.transpose : '';
+  // пунктир на кнопке = тонику выбрал автомат и сам в ней не уверен
+  $('tKey').classList.toggle('guess', viewMode(s,tPc)!=='chords' && !ti.sure);
   if(viewMode(s,tPc)!=='chords'){
     // в ступенях кнопка называет не первый аккорд, а тонику, от которой считать
     $('tKey').textContent='1 = '+transposeChord(tk,s.transpose,opt)+tail;
@@ -857,13 +984,16 @@ function cycleDeg(){
 function tonicMenu(){
   const s=S.songs[S.active]; if(!s) return;
   const d=doc(s.id), opt=readOpt(s,d);
-  const auto=keyToken(firstChord(d.blocks));
+  const det=detectKey(d.blocks,opt);
+  const auto=det?det.token:keyToken(firstChord(d.blocks));
   const pick=(k)=>{ s.key=k; renderHead(); renderSheet(); save(); };
-  const items=[{label:'Авто — по первому аккорду',
-                val:(s.key?'':'· ')+(auto||'нет аккордов'),
+  const items=[{label:'Авто — по разбору песни',
+                val:(s.key?'':'· ')+(auto||'нет аккордов')+(det&&!det.sure?' ?':''),
                 act:()=>pick(null)}];
+  // счёт кандидатов виден: близкие числа = выбор спорный, решать ухом
+  const sc=new Map((det?det.alts:[]).map(a=>[a.tok,a.score]));
   for(const k of songKeyTokens(d.blocks))
-    items.push({label:k, val:s.key===k?'·':'', act:()=>pick(k)});
+    items.push({label:k, val:(s.key===k?'· ':'')+(sc.has(k)?sc.get(k).toFixed(1):''), act:()=>pick(k)});
   showMenu(items);
 }
 
@@ -879,7 +1009,7 @@ function songMenu(){
   });
   items.push({label:'Показывать',val:DEG_LABEL[S.settings.deg||'chords'],act:cycleDeg});
   if((S.settings.deg||'chords')!=='chords')
-    items.push({label:'Тоника',val:s.key||(keyToken(firstChord(d.blocks))||'—')+' авто',act:tonicMenu});
+    items.push({label:'Тоника',val:s.key?s.key:(tonicInfo(s,d,readOpt(s,d)).tok||'—')+' авто',act:tonicMenu});
   showMenu(items.concat([
     {label:'Знаки',val:s.flats?'бемоли ♭':'диезы ♯',act:()=>{s.flats=!s.flats;renderHead();renderSheet();save();}},
     {label:s.hide?'Показать аккорды':'Скрыть аккорды',act:()=>{s.hide=!s.hide;renderSheet();save();}},
