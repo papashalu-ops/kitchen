@@ -253,7 +253,8 @@ const PC={C:0,D:2,E:4,F:5,G:7,A:9,H:11};   // B сознательно отсу�
 const CHORD_RE=/^([A-H])([#b\u266f\u266d]?)((?:maj|Maj|MAJ|min|Min|m|M|dim|aug|sus|add|alt|no|\u00b0|\u00f8|\u0394|\+|-|\d|\()[A-Za-z0-9\u00b0\u00f8\u0394#b\u266f\u266d+\-()\u2206]*)?(?:\/([A-H])([#b\u266f\u266d]?))?$/;
 // служебные значки на строке аккордов
 const STRUCT_RE=/^(?:\|{1,2}|:\|{1,2}|\|{1,2}:|[xX]\d{1,2}|\(\d{1,2}[xXхХ]\)|\d{1,2}[xXхХ]|N\.?C\.?|%|-{1,4}|~|\/{1,4}|\.{2,4})$/;
-const SECT_RE=/^\s*(?:\[([^\]]{1,48})\]|\{(?:c|comment|соmment)\s*:\s*([^}]{1,48})\}|((?:куплет|припев|бридж|проигрыш|вступление|интро|кода|соло|финал|аутро|запев|verse|chorus|bridge|intro|outro|solo|pre-?chorus|interlude|riff)[^\n]{0,20}))\s*$/i;
+// после закрывающей скобки допускается короткий хвост: «[Куплет]:», «[Припев] (2 раза)»
+const SECT_RE=/^\s*(?:\[([^\]]{1,48})\]([^\n]{0,16})|\{(?:c|comment|соmment)\s*:\s*([^}]{1,48})\}|((?:куплет|припев|бридж|проигрыш|вступление|интро|кода|соло|финал|аутро|запев|verse|chorus|bridge|intro|outro|solo|pre-?chorus|interlude|riff)[^\n]{0,20}))\s*$/i;
 
 function isChord(t){ return CHORD_RE.test(t); }
 function isStruct(t){ return STRUCT_RE.test(t); }
@@ -282,6 +283,53 @@ function isChordLine(line){
     return false;
   }
   return n>0;
+}
+
+function isSect(line){ return line!==undefined && SECT_RE.test(line); }
+
+// заголовок печатаем без скобочного мусора: «Куплет]:» -> «Куплет»,
+// но содержательный хвост сохраняем: «[Припев] (2 раза)» -> «Припев (2 раза)»
+function sectText(m){
+  const s = m[1]!==undefined ? (m[1]+' '+(m[2]||'')) : (m[3]!==undefined?m[3]:(m[4]||''));
+  return s.replace(/^[\s\[\{]+/,'').replace(/[\s\]\}:;.,\u2013\u2014-]+$/,'').replace(/\s+/g,' ').trim();
+}
+
+// строка из ровно одного аккорда и ничего больше — примета копипасты с сайтов,
+// где аккорды позиционируются стилями: при копировании каждый уезжает на свою строку
+function isLoneChordLine(line){
+  if(line===undefined) return false;
+  const s=line.trim();
+  return !!s && !/\s/.test(s) && isChord(s);
+}
+
+/* Та же копипаста ломает строку аккордов, но НЕ теряет её: горизонтальный отступ
+   каждого аккорда сохраняется как ведущие пробелы своей строки. Значит строка
+   собирается обратно простой конкатенацией — колонки восстанавливаются точно, ничего
+   не выдумывается. Отступ самого первого аккорда мог остаться отдельной строкой
+   из пробелов; пустая строка между собранными аккордами и словами — тот же артефакт.
+   Прогон без отступов вовсе сюда не попадает: там позиции правда потеряны. */
+function unwrapChordColumns(lines){
+  const out=[]; let i=0;
+  while(i<lines.length){
+    const pre = (lines[i]!=='' && !lines[i].trim() && isLoneChordLine(lines[i+1]) && isLoneChordLine(lines[i+2]))
+                ? lines[i] : null;
+    const s = pre!==null ? i+1 : i;
+    if(isLoneChordLine(lines[s]) && isLoneChordLine(lines[s+1])){
+      let j=s; const parts=[];
+      while(isLoneChordLine(lines[j])) parts.push(lines[j++].replace(/\s+$/,''));
+      if(pre!==null || parts.slice(1).some(p=>/^\s/.test(p))){
+        let line = pre||'';
+        parts.forEach((p,k)=>{ line += (k>0 && !/^\s/.test(p)) ? ' '+p : p; });
+        out.push(line);
+        const nl=lines[j], nn=lines[j+1];
+        if(nl!==undefined && !nl.trim() && nn!==undefined && nn.trim() &&
+           !isLoneChordLine(nn) && !isChordLine(nn) && !isSect(nn) && !hasChordPro(nn)) j++;
+        i=j; continue;
+      }
+    }
+    out.push(lines[i]); i++;
+  }
+  return out;
 }
 
 function chordTokens(line){
@@ -368,7 +416,7 @@ function buildRow(chords,lyric){
 
 function parseSong(text){
   const raw=String(text||'').replace(/\r\n?/g,'\n').replace(/\t/g,'    ').split('\n');
-  const lines=raw.map(l=>l.replace(/\s+$/,''));
+  const lines=unwrapChordColumns(raw).map(l=>l.replace(/\s+$/,''));
   const blocks=[]; let stat={chords:0,rows:0,usesH:false,hasB:false};
   const tally=(cs)=>{
     for(const c of cs){
@@ -395,7 +443,23 @@ function parseSong(text){
 
     const sm=SECT_RE.exec(ln);
     if(sm && !isChordLine(ln)){
-      blocks.push({type:'sect',text:(sm[1]||sm[2]||sm[3]||'').trim()});
+      blocks.push({type:'sect',text:sectText(sm)});
+      continue;
+    }
+
+    // прогон из двух и более одиночных аккордов — это потерянные при копировании
+    // колонки, а не замысел. Склеиваем в одну полосу и НЕ вешаем на слова:
+    // где аккорд стоял на самом деле, никто уже не знает, выдумывать не будем.
+    if(isLoneChordLine(ln) && isLoneChordLine(lines[i+1])){
+      const merged=[]; let col=0;
+      while(i<lines.length && isLoneChordLine(lines[i])){
+        const t=lines[i].trim();
+        merged.push({col,text:t,raw:false});
+        col+=t.length+1; i++;
+      }
+      i--;                                   // внешний цикл сделает свой ++
+      tally(merged);
+      blocks.push({type:'row',groups:buildRow(merged,''),hasch:true});
       continue;
     }
 
@@ -403,7 +467,7 @@ function parseSong(text){
       const chords=chordTokens(ln);
       tally(chords);
       const nxt=lines[i+1];
-      const pairs = nxt!==undefined && nxt.trim() && !isChordLine(nxt) && !(SECT_RE.test(nxt)) && !hasChordPro(nxt);
+      const pairs = nxt!==undefined && nxt.trim() && !isChordLine(nxt) && !isSect(nxt) && !hasChordPro(nxt);
       if(pairs){ blocks.push({type:'row',groups:buildRow(chords,nxt),hasch:true}); stat.rows++; i++; }
       else blocks.push({type:'row',groups:buildRow(chords,''),hasch:true});
       continue;
