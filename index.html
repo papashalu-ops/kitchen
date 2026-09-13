@@ -76,6 +76,9 @@ html[data-theme="light"] .pill.on{color:#fff}
 .ch:not(:empty){padding-right:.55em}
 .ch.raw{color:var(--dim);font-weight:600}
 .ch.guess{text-decoration:underline dotted currentColor;text-underline-offset:.18em;opacity:.85}
+/* ступени: цифра полным кеглем, суффикс мельче — иначе A7 в до мажоре читается как «67» */
+.ch .sfx{font-size:.76em;font-weight:700}
+.ch .ref{font-size:.76em;font-weight:600;color:var(--dim);padding-left:.2em}
 .line.hasch .ch{min-height:1.25em}
 .ly{font-family:var(--lyr);white-space:pre;line-height:var(--lh)}
 .blank{height:.75em}
@@ -361,6 +364,60 @@ function transposeChord(text,semi,o){
   return out;
 }
 
+/* ---------------------------------------------------------------- СТУПЕНИ
+   Та же арифметика по модулю 12, только вычитается тоника вместо прибавления
+   полутонов. Парсер не участвует: это преобразование на отрисовке.
+
+   Таблица ОДНА на оба наклонения — отсчёт всегда от мажорной гаммы. В миноре
+   это даёт b3, b6, b7: пять бемолей из семи диатонических ступеней, шумновато
+   на вид, но «3» тогда ВСЕГДА четыре полутона от тоники, в любой песне. Если
+   считать от натурального минора, «3» начинает означать то три полутона, то
+   четыре — ярлык перестаёт быть именем интервала, а весь смысл упражнения
+   ровно в том, чтобы приварить ярлык к интервалу.
+   Альтернатива — правка одной строки (хроматика тогда съезжает на диезы):
+   // const DEG=['1','b2','2','3','#3','4','b5','5','6','#6','7','#7']; */
+const DEG=['1','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
+
+/* Токен тоники: корень + знак + m у минорного. Am7 -> Am, Cmaj7 -> C, C7 -> C. */
+function keyToken(text){
+  const c=parseChord(text||'');
+  if(!c) return null;
+  return c.root+c.acc+(/^(?:m(?!aj)|min|Min|-)/.test(c.suf)?'m':'');
+}
+function tonicPcOf(token,o){
+  const c=parseChord(token||'');
+  return c?pcOf(c.root,c.acc,(o||{}).bFlat):null;
+}
+/* Возвращает ЧАСТИ, а не строку: суффикс рисуется мельче, иначе A7 в до мажоре
+   склеивается в «67» и не читается вовсе. tonicPc — в координатах исходного
+   текста, поэтому ступени не зависят от транспонирования. */
+function degreeChord(text,tonicPc,o){
+  if(tonicPc===null||tonicPc===undefined) return null;
+  const c=parseChord(text);
+  if(!c) return null;
+  const opt=o||{};
+  const d=(pc)=>DEG[((pc-tonicPc)%12+12)%12];
+  return {deg:d(pcOf(c.root,c.acc,opt.bFlat)), suf:c.suf||'',
+          bass:c.bass?d(pcOf(c.bass,c.bacc,opt.bFlat)):''};
+}
+function degreeText(x){ return x?x.deg+x.suf+(x.bass?'/'+x.bass:''):''; }
+
+/* Кандидаты в тоники: уникальные аккорды песни в порядке появления.
+   Список для ручного выбора — короткий и весь из настоящих аккордов песни. */
+function songKeyTokens(blocks){
+  const seen=new Set(), out=[];
+  for(const b of blocks){
+    if(b.type!=='row') continue;
+    for(const g of b.groups) for(const u of g.units){
+      if(!u.chord||u.chord.raw) continue;
+      const k=keyToken(u.chord.text);
+      if(!k||seen.has(k)) continue;
+      seen.add(k); out.push(k);
+    }
+  }
+  return out;
+}
+
 // ChordPro-строка -> пара (строка аккордов, строка слов)
 function chordProSplit(line){
   let lyric='', chords=[];
@@ -522,7 +579,7 @@ Dm  E7  Am`;
 
 let S={
   songs:{}, tabs:[], active:null,
-  settings:{fs:19,theme:'dark',sort:'recent',speed:28,wake:true}
+  settings:{fs:19,theme:'dark',sort:'recent',speed:28,wake:true,deg:'chords'}
 };
 const cache=new Map();
 let saveT=null;
@@ -535,7 +592,7 @@ const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slic
 function newSong(title,artist,text){
   const id=uid();
   S.songs[id]={id,title:title||'Без названия',artist:artist||'',text:text||'',
-    transpose:0,bFlat:null,flats:false,hide:false,pos:0,created:Date.now()};
+    transpose:0,bFlat:null,flats:false,hide:false,key:null,pos:0,created:Date.now()};
   return id;
 }
 function doc(id){
@@ -548,12 +605,50 @@ function readOpt(s,d){
   return {bFlat:s.bFlat===true, flats:!!s.flats, useH:!!(d&&d.stat.usesH)};
 }
 
+/* ---------- режим показа аккорда ----------
+   Глобальный, а не по песне: это режим занятия, а не свойство песни.
+   Открыл пять вкладок, решил «сегодня играю по цифрам» — переключать пять раз незачем. */
+const DEG_MODES=['chords','deg','degref'];
+const DEG_LABEL={chords:'аккорды',deg:'ступени',degref:'ступени со сноской'};
+
+function el(tag,cls,txt){
+  const e=document.createElement(tag);
+  if(cls) e.className=cls;
+  if(txt!=null) e.textContent=txt;
+  return e;
+}
+/* Тоника в координатах ИСХОДНОГО текста: выбранная вручную или первый аккорд.
+   Для песен, начинающихся не с тоники, автомат врёт — на то и ручной выбор. */
+function tonicOf(s,d){ return s.key || keyToken(firstChord(d.blocks)) || null; }
+
+/* Что реально рисуем: если тоники нет (песня без аккордов) — откат к аккордам. */
+function viewMode(s,tPc){
+  const m=S.settings.deg||'chords';
+  return (m!=='chords' && tPc===null) ? 'chords' : m;
+}
+
+function paintChord(ch,chord,s,opt,mode,tPc){
+  if(chord.raw){ ch.textContent=chord.text; return; }
+  const real=transposeChord(chord.text,s.transpose,opt);
+  if(mode==='chords'){ ch.textContent=real; return; }
+  const g=degreeChord(chord.text,tPc,opt);
+  if(!g){ ch.textContent=real; return; }
+  ch.appendChild(el('span','dg',g.deg));
+  if(g.suf)  ch.appendChild(el('span','sfx',g.suf));
+  if(g.bass) ch.appendChild(el('span','dg','/'+g.bass));
+  if(mode==='degref') ch.appendChild(el('span','ref','('+real+')'));
+}
+
 /* ---------- отрисовка ---------- */
 function renderSheet(){
   const sheet=$('sheet'); sheet.textContent='';
   const id=S.active; if(!id) return;
   const s=S.songs[id], d=doc(id);
   const opt=readOpt(s,d);
+  const tPc=tonicPcOf(tonicOf(s,d),opt);
+  const mode=viewMode(s,tPc);
+  // в ступенях аккорд интерпретируется всегда — отложить чтение B, как при нуле, уже нельзя
+  const interp = mode!=='chords' || !!s.transpose;
   sheet.classList.toggle('nochords',!!s.hide);
   const frag=document.createDocumentFragment();
   for(const b of d.blocks){
@@ -566,8 +661,8 @@ function renderSheet(){
         const ue=document.createElement('span'); ue.className='unit';
         const ch=document.createElement('span'); ch.className='ch'+(u.chord&&u.chord.raw?' raw':'');
         if(u.chord){
-          ch.textContent = u.chord.raw ? u.chord.text : transposeChord(u.chord.text,s.transpose,opt);
-          if(s.transpose && !u.chord.raw && s.bFlat==null && ambiguousB(u.chord.text)) ch.classList.add('guess');
+          paintChord(ch,u.chord,s,opt,mode,tPc);
+          if(interp && !u.chord.raw && s.bFlat==null && ambiguousB(u.chord.text)) ch.classList.add('guess');
         }
         const ly=document.createElement('span'); ly.className='ly'; ly.textContent=u.text;
         ue.appendChild(ch); ue.appendChild(ly); ge.appendChild(ue);
@@ -603,9 +698,16 @@ function renderHead(){
   const s=S.songs[S.active], d=doc(S.active);
   $('hTitle').textContent=s.title;
   $('hArtist').textContent=s.artist||'';
-  const fc=firstChord(d.blocks);
-  const key=fc?transposeChord(fc,s.transpose,readOpt(s,d)):'—';
-  $('tKey').textContent = s.transpose ? key+' '+(s.transpose>0?'+':'')+s.transpose : key;
+  const opt=readOpt(s,d);
+  const tk=tonicOf(s,d), tPc=tonicPcOf(tk,opt);
+  const tail = s.transpose ? ' '+(s.transpose>0?'+':'')+s.transpose : '';
+  if(viewMode(s,tPc)!=='chords'){
+    // в ступенях кнопка называет не первый аккорд, а тонику, от которой считать
+    $('tKey').textContent='1 = '+transposeChord(tk,s.transpose,opt)+tail;
+  }else{
+    const fc=firstChord(d.blocks);
+    $('tKey').textContent=(fc?transposeChord(fc,s.transpose,opt):'—')+tail;
+  }
 }
 
 function renderAll(){ renderTabs(); renderHead(); renderSheet(); }
@@ -739,6 +841,32 @@ function showMenu(items){
   }
   $('menu').classList.add('on');
 }
+/* Перебор трёх режимов. Со сноской -> ступени -> аккорды и обратно по кругу. */
+function cycleDeg(){
+  const i=DEG_MODES.indexOf(S.settings.deg||'chords');
+  S.settings.deg=DEG_MODES[(i+1)%DEG_MODES.length];
+  const s=S.songs[S.active], d=s?doc(s.id):null;
+  // в ступенях голое B печатать нечем: либо 3, либо b3. Отложить решение уже нельзя
+  if(S.settings.deg!=='chords' && s && s.bFlat==null && d && d.stat.hasB)
+    toast('B читаю как си — в ступенях это уже видно. Не то: меню ⋯');
+  else toast('Показ: '+DEG_LABEL[S.settings.deg]);
+  renderHead(); renderSheet(); save();
+}
+
+/* Выбор тоники — только из аккордов самой песни: список короткий и без выдумок. */
+function tonicMenu(){
+  const s=S.songs[S.active]; if(!s) return;
+  const d=doc(s.id), opt=readOpt(s,d);
+  const auto=keyToken(firstChord(d.blocks));
+  const pick=(k)=>{ s.key=k; renderHead(); renderSheet(); save(); };
+  const items=[{label:'Авто — по первому аккорду',
+                val:(s.key?'':'· ')+(auto||'нет аккордов'),
+                act:()=>pick(null)}];
+  for(const k of songKeyTokens(d.blocks))
+    items.push({label:k, val:s.key===k?'·':'', act:()=>pick(k)});
+  showMenu(items);
+}
+
 function songMenu(){
   const s=S.songs[S.active]; if(!s) return;
   const d=doc(s.id);
@@ -749,6 +877,9 @@ function songMenu(){
     act:()=>{ s.bFlat = s.bFlat===true ? false : true; renderHead(); renderSheet(); save();
               toast('B читается как '+(s.bFlat?'си-бемоль':'си')); }
   });
+  items.push({label:'Показывать',val:DEG_LABEL[S.settings.deg||'chords'],act:cycleDeg});
+  if((S.settings.deg||'chords')!=='chords')
+    items.push({label:'Тоника',val:s.key||(keyToken(firstChord(d.blocks))||'—')+' авто',act:tonicMenu});
   showMenu(items.concat([
     {label:'Знаки',val:s.flats?'бемоли ♭':'диезы ♯',act:()=>{s.flats=!s.flats;renderHead();renderSheet();save();}},
     {label:s.hide?'Показать аккорды':'Скрыть аккорды',act:()=>{s.hide=!s.hide;renderSheet();save();}},
@@ -770,7 +901,8 @@ function doImport(txt){
     const id=uid();
     S.songs[id]={id,title:s.title||'Без названия',artist:s.artist||'',text:s.text,
       transpose:s.transpose|0,bFlat:(s.bFlat===true||s.bFlat===false)?s.bFlat:null,
-      flats:!!s.flats,hide:false,pos:0,created:s.created||Date.now()};
+      flats:!!s.flats,hide:false,key:typeof s.key==='string'?s.key:null,
+      pos:0,created:s.created||Date.now()};
     n++;
   }
   renderLib(); save(); toast('Добавлено песен: '+n);
@@ -871,6 +1003,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='-') bumpFs(-2);
   if(e.key==='ArrowRight') shiftTab(1);
   if(e.key==='ArrowLeft') shiftTab(-1);
+  if(e.key==='d'||e.key==='в'){ if(S.active) cycleDeg(); }
   if(e.key===' '){ e.preventDefault(); playing?stopAuto():startAuto(); }
 });
 
@@ -885,10 +1018,11 @@ function applyTheme(){
   const saved=await store.get();
   if(saved&&saved.songs){
     S=Object.assign(S,saved);
-    S.settings=Object.assign({fs:19,theme:'dark',sort:'recent',speed:28,wake:true},saved.settings||{});
+    S.settings=Object.assign({fs:19,theme:'dark',sort:'recent',speed:28,wake:true,deg:'chords'},saved.settings||{});
     if(Array.isArray(saved.songs)){ const o={}; saved.songs.forEach(s=>o[s.id]=s); S.songs=o; }
   }
   if(!Object.keys(S.songs).length){ const id=newSong('Как это работает','Песенник',DEMO); S.tabs=[id]; S.active=id; }
+  for(const s of Object.values(S.songs)) if(s.key===undefined) s.key=null;   // песни, сохранённые до ступеней
   S.tabs=S.tabs.filter(id=>S.songs[id]);
   if(!S.songs[S.active]) S.active=S.tabs[0]||null;
   applyTheme(); applyFs();
